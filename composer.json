@@ -1,0 +1,65 @@
+{
+    "name": "lettr/lettr-laravel",
+    "description": "Lettr for Laravel - Official Laravel integration for Lettr email API",
+    "keywords": ["php", "lettr", "laravel", "sdk", "api", "client", "email"],
+    "homepage": "https://uselettr.com/",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Lettr and contributors",
+            "homepage": "https://github.com/TOPOL-io/lettr-laravel/contributors"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "illuminate/http": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "lettr/lettr-php": "0.1.0-alpha.1",
+        "symfony/mailer": "^6.2|^7.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.18",
+        "larastan/larastan": "^2.0|^3.0",
+        "mockery/mockery": "^1.5",
+        "orchestra/testbench": "^8.17|^9.0|^10.8",
+        "pestphp/pest": "^2.0|^3.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Lettr\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Lettr\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        },
+        "laravel": {
+            "providers": [
+                "Lettr\\Laravel\\LettrServiceProvider"
+            ],
+            "aliases": {
+                "Lettr": "Lettr\\Laravel\\Facades\\Lettr"
+            }
+        }
+    },
+    "scripts": {
+        "lint": "pint",
+        "test": "pest",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true,
+        "preferred-install": "dist",
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
+
