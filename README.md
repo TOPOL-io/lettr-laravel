@@ -4,7 +4,7 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/lettr/lettr-laravel.svg)](https://packagist.org/packages/lettr/lettr-laravel)
 [![Total Downloads](https://img.shields.io/packagist/dt/lettr/lettr-laravel.svg)](https://packagist.org/packages/lettr/lettr-laravel)
 [![PHP Version](https://img.shields.io/packagist/php-v/lettr/lettr-laravel.svg)](https://packagist.org/packages/lettr/lettr-laravel)
-[![License](https://img.shields.io/packagist/l/lettr/lettr-laravel.svg)](https://packagist.org/packages/lettr/lettr-laravel)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Official Laravel integration for the [Lettr](https://lettr.com) email API.
 
