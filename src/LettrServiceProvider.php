@@ -7,6 +7,7 @@ namespace Lettr\Laravel;
 use Illuminate\Mail\Mailer;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
+use Lettr\Laravel\Console\PullCommand;
 use Lettr\Laravel\Exceptions\ApiKeyIsMissing;
 use Lettr\Laravel\Mail\LettrPendingMail;
 use Lettr\Laravel\Transport\LettrTransportFactory;
@@ -25,6 +26,7 @@ class LettrServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPublishing();
+        $this->registerCommands();
 
         Mail::extend('lettr', function (array $config = []): LettrTransportFactory {
             /** @var LettrManager $manager */
@@ -108,6 +110,18 @@ class LettrServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../config/lettr.php' => $this->app->configPath('lettr.php'),
             ], 'lettr-config');
+        }
+    }
+
+    /**
+     * Register the package's Artisan commands.
+     */
+    protected function registerCommands(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                PullCommand::class,
+            ]);
         }
     }
 

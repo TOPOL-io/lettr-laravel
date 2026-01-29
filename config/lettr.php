@@ -27,4 +27,22 @@ return [
 
     'default_project_id' => env('LETTR_DEFAULT_PROJECT_ID'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Template Paths
+    |--------------------------------------------------------------------------
+    |
+    | Configure where pulled templates and generated Mailables should be saved.
+    | The blade_path is where template HTML files will be stored as Blade views.
+    | The mailable_path and mailable_namespace are used when generating Mailable
+    | classes with the --with-mailables option.
+    |
+    */
+
+    'templates' => [
+        'blade_path' => resource_path('views/emails/lettr'),
+        'mailable_path' => app_path('Mail/Lettr'),
+        'mailable_namespace' => 'App\\Mail\\Lettr',
+    ],
+
 ];
