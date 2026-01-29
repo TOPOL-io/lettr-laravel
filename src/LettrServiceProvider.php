@@ -27,10 +27,10 @@ class LettrServiceProvider extends ServiceProvider
         $this->registerPublishing();
 
         Mail::extend('lettr', function (array $config = []): LettrTransportFactory {
-            /** @var Lettr $lettr */
-            $lettr = $this->app->make('lettr');
+            /** @var LettrManager $manager */
+            $manager = $this->app->make('lettr');
 
-            return new LettrTransportFactory($lettr, $config['options'] ?? []);
+            return new LettrTransportFactory($manager->sdk(), $config['options'] ?? []);
         });
 
         Mailer::macro('lettr', function (): LettrPendingMail {
@@ -74,7 +74,7 @@ class LettrServiceProvider extends ServiceProvider
      */
     protected function bindLettrClient(): void
     {
-        $this->app->singleton('lettr', static function (): Lettr {
+        $this->app->singleton(Lettr::class, static function (): Lettr {
             $apiKey = config('lettr.api_key') ?? config('services.lettr.key');
 
             if (! is_string($apiKey)) {
@@ -84,7 +84,19 @@ class LettrServiceProvider extends ServiceProvider
             return Lettr::client($apiKey);
         });
 
-        $this->app->alias('lettr', Lettr::class);
+        $this->app->singleton('lettr', function (): LettrManager {
+            /** @var Lettr $lettr */
+            $lettr = $this->app->make(Lettr::class);
+
+            $defaultProjectId = config('lettr.default_project_id');
+
+            return new LettrManager(
+                $lettr,
+                is_numeric($defaultProjectId) ? (int) $defaultProjectId : null,
+            );
+        });
+
+        $this->app->alias('lettr', LettrManager::class);
     }
 
     /**
@@ -109,6 +121,7 @@ class LettrServiceProvider extends ServiceProvider
         return [
             'lettr',
             Lettr::class,
+            LettrManager::class,
         ];
     }
 }

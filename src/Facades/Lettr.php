@@ -10,8 +10,10 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Lettr\Services\EmailService emails()
  * @method static \Lettr\Services\DomainService domains()
  * @method static \Lettr\Services\WebhookService webhooks()
+ * @method static \Lettr\Laravel\Services\TemplateServiceWrapper templates()
  *
  * @see \Lettr\Lettr
+ * @see \Lettr\Laravel\LettrManager
  */
 class Lettr extends Facade
 {
