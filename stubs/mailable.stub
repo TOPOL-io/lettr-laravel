@@ -7,6 +7,7 @@ namespace {{ namespace }};
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Lettr\Laravel\Mail\LettrMailable;
+{{ dtoImport }}
 
 class {{ class }} extends LettrMailable
 {
@@ -15,10 +16,9 @@ class {{ class }} extends LettrMailable
     /**
      * Create a new message instance.
      */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct(
+        {{ dtoProperty }}
+    ) {}
 
     /**
      * Get the message envelope.
@@ -39,4 +39,5 @@ class {{ class }} extends LettrMailable
             view: 'emails.lettr.{{ slug }}',
         );
     }
+{{ withMergeTagsMethod }}
 }

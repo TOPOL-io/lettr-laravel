@@ -8,9 +8,11 @@ use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Lettr\Dto\Template\ListTemplatesFilter;
+use Lettr\Dto\Template\MergeTag;
 use Lettr\Dto\Template\Template;
 use Lettr\Dto\Template\TemplateDetail;
 use Lettr\Laravel\LettrManager;
+use Lettr\Laravel\Support\DtoGenerator;
 
 use function Laravel\Prompts\progress;
 
@@ -32,10 +34,10 @@ class PullCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Pull email templates from Lettr API as Blade files';
+    protected $description = 'Pull email templates from Lettr API as HTML files';
 
     /**
-     * @var array<int, array{slug: string, blade_path: string}>
+     * @var array<int, array{slug: string, path: string}>
      */
     protected array $downloadedTemplates = [];
 
@@ -45,6 +47,11 @@ class PullCommand extends Command
     protected array $generatedMailables = [];
 
     /**
+     * @var array<int, array{class: string, path: string}>
+     */
+    protected array $generatedDtos = [];
+
+    /**
      * @var array<int, string>
      */
     protected array $skippedTemplates = [];
@@ -52,6 +59,7 @@ class PullCommand extends Command
     public function __construct(
         protected readonly LettrManager $lettr,
         protected readonly Filesystem $files,
+        protected readonly DtoGenerator $dtoGenerator,
     ) {
         parent::__construct();
     }
@@ -169,32 +177,60 @@ class PullCommand extends Command
             return;
         }
 
-        // Save blade file
-        $bladePath = $this->saveBlade($detail, $dryRun);
+        // Save HTML file
+        $htmlPath = $this->saveHtml($detail, $dryRun);
         $this->downloadedTemplates[] = [
             'slug' => $detail->slug,
-            'blade_path' => $bladePath,
+            'path' => $htmlPath,
         ];
 
-        // Generate Mailable if requested
+        // Generate Mailable and DTO if requested
         if ($withMailables) {
-            $mailable = $this->generateMailable($detail, $dryRun);
+            // Fetch merge tags for the DTO
+            $mergeTags = $this->fetchMergeTags($detail, $projectId);
+
+            // Generate DTO if there are merge tags
+            if (! empty($mergeTags)) {
+                $this->dtoGenerator->generate($detail->slug, $mergeTags, $dryRun);
+                foreach ($this->dtoGenerator->getGeneratedDtos() as $dto) {
+                    $this->generatedDtos[] = $dto;
+                }
+            }
+
+            // Generate Mailable with DTO integration
+            $mailable = $this->generateMailable($detail, $mergeTags, $dryRun);
             $this->generatedMailables[] = $mailable;
         }
     }
 
     /**
-     * Save the template HTML as a Blade file.
+     * Fetch merge tags for a template.
+     *
+     * @return array<int, MergeTag>
      */
-    protected function saveBlade(TemplateDetail $template, bool $dryRun): string
+    protected function fetchMergeTags(TemplateDetail $detail, ?int $projectId): array
     {
-        $bladePath = config('lettr.templates.blade_path');
-        $filename = $template->slug.'.blade.php';
-        $fullPath = $bladePath.'/'.$filename;
+        if ($detail->activeVersion === null) {
+            return [];
+        }
+
+        $response = $this->lettr->templates()->getMergeTags($detail->slug, $projectId, $detail->activeVersion);
+
+        return $response->mergeTags;
+    }
+
+    /**
+     * Save the template as an HTML file.
+     */
+    protected function saveHtml(TemplateDetail $template, bool $dryRun): string
+    {
+        $htmlPath = config('lettr.templates.html_path');
+        $filename = $template->slug.'.html';
+        $fullPath = $htmlPath.'/'.$filename;
         $relativePath = str_replace(base_path().'/', '', $fullPath);
 
         if (! $dryRun) {
-            $this->ensureDirectoryExists($bladePath);
+            $this->ensureDirectoryExists($htmlPath);
             $this->files->put($fullPath, (string) $template->html);
         }
 
@@ -204,9 +240,10 @@ class PullCommand extends Command
     /**
      * Generate a Mailable class for the template.
      *
+     * @param  array<int, MergeTag>  $mergeTags
      * @return array{class: string, path: string}
      */
-    protected function generateMailable(TemplateDetail $template, bool $dryRun): array
+    protected function generateMailable(TemplateDetail $template, array $mergeTags, bool $dryRun): array
     {
         $mailablePath = config('lettr.templates.mailable_path');
         $namespace = config('lettr.templates.mailable_namespace');
@@ -219,7 +256,7 @@ class PullCommand extends Command
 
         if (! $dryRun) {
             $this->ensureDirectoryExists($mailablePath);
-            $stub = $this->getMailableStub($namespace, $className, $template);
+            $stub = $this->getMailableStub($namespace, $className, $template, $mergeTags);
             $this->files->put($fullPath, $stub);
         }
 
@@ -231,8 +268,10 @@ class PullCommand extends Command
 
     /**
      * Get the populated mailable stub content.
+     *
+     * @param  array<int, MergeTag>  $mergeTags
      */
-    protected function getMailableStub(string $namespace, string $className, TemplateDetail $template): string
+    protected function getMailableStub(string $namespace, string $className, TemplateDetail $template, array $mergeTags): string
     {
         $stubPath = __DIR__.'/../../stubs/mailable.stub';
         $stub = $this->files->get($stubPath);
@@ -240,11 +279,55 @@ class PullCommand extends Command
         // Convert template name to a readable subject
         $subject = Str::headline($template->name);
 
+        // Generate DTO-related stub content
+        $hasMergeTags = ! empty($mergeTags);
+        $dtoClassName = $this->dtoGenerator->getDtoClassName($template->slug);
+        $dtoFullClass = $this->dtoGenerator->getFullyQualifiedDtoClassName($template->slug);
+
+        $dtoImport = $hasMergeTags ? "use {$dtoFullClass};" : '';
+        $dtoProperty = $hasMergeTags ? "public readonly {$dtoClassName} \$data," : '';
+        $withMergeTagsMethod = $hasMergeTags ? $this->generateWithMergeTagsMethod() : '';
+
         return str_replace(
-            ['{{ namespace }}', '{{ class }}', '{{ slug }}', '{{ subject }}'],
-            [$namespace, $className, $template->slug, $subject],
+            [
+                '{{ namespace }}',
+                '{{ class }}',
+                '{{ slug }}',
+                '{{ subject }}',
+                '{{ dtoImport }}',
+                '{{ dtoProperty }}',
+                '{{ withMergeTagsMethod }}',
+            ],
+            [
+                $namespace,
+                $className,
+                $template->slug,
+                $subject,
+                $dtoImport,
+                $dtoProperty,
+                $withMergeTagsMethod,
+            ],
             $stub
         );
+    }
+
+    /**
+     * Generate the withMergeTags method for the mailable.
+     */
+    protected function generateWithMergeTagsMethod(): string
+    {
+        return <<<'PHP'
+
+    /**
+     * Get the merge tags for this mailable.
+     *
+     * @return array<string, mixed>
+     */
+    public function withMergeTags(): array
+    {
+        return $this->data->toArray();
+    }
+PHP;
     }
 
     /**
@@ -278,8 +361,21 @@ class PullCommand extends Command
         foreach ($this->downloadedTemplates as $template) {
             $this->components->twoColumnDetail(
                 "  <fg=green>✓</> {$template['slug']}",
-                $template['blade_path']
+                $template['path']
             );
+        }
+
+        if ($withMailables && ! empty($this->generatedDtos)) {
+            $this->newLine();
+            $dtoPrefix = $dryRun ? 'Would generate DTOs' : 'Generated DTOs';
+            $this->components->twoColumnDetail("<fg=gray>{$dtoPrefix}:</>");
+
+            foreach ($this->generatedDtos as $dto) {
+                $this->components->twoColumnDetail(
+                    "  <fg=green>✓</> {$dto['class']}",
+                    $dto['path']
+                );
+            }
         }
 
         if ($withMailables && ! empty($this->generatedMailables)) {

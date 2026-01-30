@@ -2,11 +2,13 @@
 
 use Illuminate\Filesystem\Filesystem;
 use Lettr\Collections\TemplateCollection;
+use Lettr\Dto\Template\MergeTag;
 use Lettr\Dto\Template\Template;
 use Lettr\Dto\Template\TemplateDetail;
 use Lettr\Laravel\Console\PullCommand;
 use Lettr\Laravel\LettrManager;
 use Lettr\Laravel\Services\TemplateServiceWrapper;
+use Lettr\Responses\GetMergeTagsResponse;
 use Lettr\Responses\ListTemplatesResponse;
 use Lettr\Responses\TemplatePagination;
 use Lettr\ValueObjects\Timestamp;
@@ -64,12 +66,14 @@ beforeEach(function () {
     $this->app->instance(LettrManager::class, $this->lettrManager);
     $this->app->instance(Filesystem::class, $this->filesystem);
 
-    config()->set('lettr.templates.blade_path', base_path('resources/views/emails/lettr'));
+    config()->set('lettr.templates.html_path', base_path('resources/templates/lettr'));
     config()->set('lettr.templates.mailable_path', base_path('app/Mail/Lettr'));
     config()->set('lettr.templates.mailable_namespace', 'App\\Mail\\Lettr');
+    config()->set('lettr.templates.dto_path', base_path('app/DataTransferObjects/Lettr'));
+    config()->set('lettr.templates.dto_namespace', 'App\\DataTransferObjects\\Lettr');
 });
 
-it('pulls templates and saves them as blade files', function () {
+it('pulls templates and saves them as html files', function () {
     $templates = [createTemplate(1, 'Welcome Email', 'welcome-email')];
     $templateDetail = createTemplateDetail(1, 'Welcome Email', 'welcome-email', '<html><body>Welcome!</body></html>');
 
@@ -89,7 +93,7 @@ it('pulls templates and saves them as blade files', function () {
         ->shouldReceive('put')
         ->once()
         ->withArgs(function ($path, $content) {
-            return str_contains($path, 'welcome-email.blade.php')
+            return str_contains($path, 'welcome-email.html')
                 && $content === '<html><body>Welcome!</body></html>';
         });
 
@@ -129,7 +133,7 @@ it('skips templates without html content', function () {
     $this->filesystem
         ->shouldReceive('put')
         ->once()
-        ->withArgs(fn ($path, $content) => str_contains($path, 'valid-template.blade.php'));
+        ->withArgs(fn ($path, $content) => str_contains($path, 'valid-template.html'));
 
     $this->artisan(PullCommand::class)
         ->assertSuccessful()
@@ -232,7 +236,7 @@ it('filters templates by slug when template option is provided', function () {
     $this->filesystem
         ->shouldReceive('put')
         ->once()
-        ->withArgs(fn ($path) => str_contains($path, 'second-template.blade.php'));
+        ->withArgs(fn ($path) => str_contains($path, 'second-template.html'));
 
     $this->artisan(PullCommand::class, ['--template' => 'second-template'])
         ->assertSuccessful();
@@ -276,6 +280,10 @@ it('generates mailable classes when with-mailables option is provided', function
     $templates = [createTemplate(1, 'Mailable Template', 'mailable-template')];
     $templateDetail = createTemplateDetail(1, 'Mailable Template', 'mailable-template', '<html>Content</html>');
 
+    $mergeTags = [
+        new MergeTag(key: 'name', type: 'string', required: true, children: null),
+    ];
+
     $this->templateService
         ->shouldReceive('list')
         ->once()
@@ -286,18 +294,35 @@ it('generates mailable classes when with-mailables option is provided', function
         ->once()
         ->andReturn($templateDetail);
 
+    $this->templateService
+        ->shouldReceive('getMergeTags')
+        ->with('mailable-template', null, 1)
+        ->once()
+        ->andReturn(new GetMergeTagsResponse(
+            projectId: 1,
+            templateSlug: 'mailable-template',
+            version: 1,
+            mergeTags: $mergeTags,
+        ));
+
     $this->filesystem->shouldReceive('isDirectory')->andReturn(true);
 
-    // Should write both blade and mailable
-    $this->filesystem->shouldReceive('put')->twice();
+    // Should write blade, DTO, and mailable
+    $this->filesystem->shouldReceive('put')->times(3);
 
     $this->filesystem
         ->shouldReceive('get')
-        ->once()
+        ->with(Mockery::pattern('/mailable\.stub$/'))
         ->andReturn(file_get_contents(__DIR__.'/../../stubs/mailable.stub'));
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with(Mockery::pattern('/template-dto\.stub$/'))
+        ->andReturn(file_get_contents(__DIR__.'/../../stubs/template-dto.stub'));
 
     $this->artisan(PullCommand::class, ['--with-mailables' => true])
         ->assertSuccessful()
+        ->expectsOutputToContain('Generated DTOs')
         ->expectsOutputToContain('Generated Mailables');
 });
 
