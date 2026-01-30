@@ -45,6 +45,9 @@ return [
         'mailable_namespace' => 'App\\Mail\\Lettr',
         'dto_path' => app_path('Dto/Lettr'),
         'dto_namespace' => 'App\\Dto\\Lettr',
+        'enum_path' => app_path('Enums'),
+        'enum_namespace' => 'App\\Enums',
+        'enum_class' => 'LettrTemplate',
     ],
 
 ];

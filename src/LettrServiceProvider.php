@@ -8,6 +8,7 @@ use Illuminate\Mail\Mailer;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Lettr\Laravel\Console\GenerateDtosCommand;
+use Lettr\Laravel\Console\GenerateEnumCommand;
 use Lettr\Laravel\Console\PullCommand;
 use Lettr\Laravel\Exceptions\ApiKeyIsMissing;
 use Lettr\Laravel\Mail\LettrPendingMail;
@@ -122,6 +123,7 @@ class LettrServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 GenerateDtosCommand::class,
+                GenerateEnumCommand::class,
                 PullCommand::class,
             ]);
         }
