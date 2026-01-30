@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Lettr\Laravel\Console\GenerateDtosCommand;
 use Lettr\Laravel\Console\GenerateEnumCommand;
 use Lettr\Laravel\Console\PullCommand;
+use Lettr\Laravel\Console\PushCommand;
 use Lettr\Laravel\Exceptions\ApiKeyIsMissing;
 use Lettr\Laravel\Mail\LettrPendingMail;
 use Lettr\Laravel\Transport\LettrTransportFactory;
@@ -125,6 +126,7 @@ class LettrServiceProvider extends ServiceProvider
                 GenerateDtosCommand::class,
                 GenerateEnumCommand::class,
                 PullCommand::class,
+                PushCommand::class,
             ]);
         }
     }

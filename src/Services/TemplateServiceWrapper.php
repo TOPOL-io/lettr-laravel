@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Lettr\Laravel\Services;
 
+use Lettr\Dto\Template\CreatedTemplate;
+use Lettr\Dto\Template\CreateTemplateData;
 use Lettr\Dto\Template\ListTemplatesFilter;
 use Lettr\Dto\Template\TemplateDetail;
+use Lettr\Exceptions\ApiException;
 use Lettr\Responses\GetMergeTagsResponse;
 use Lettr\Responses\ListTemplatesResponse;
 use Lettr\Services\TemplateService;
@@ -57,6 +60,40 @@ class TemplateServiceWrapper
     }
 
     /**
+     * Create a new template.
+     *
+     * If no project ID is provided in the data and a default is configured, uses the default.
+     */
+    public function create(CreateTemplateData $data): CreatedTemplate
+    {
+        $data = $this->applyDefaultProjectIdToCreateData($data);
+
+        return $this->templateService->create($data);
+    }
+
+    /**
+     * Check if a template with the given slug exists.
+     *
+     * If no project ID is provided and a default is configured, uses the default.
+     */
+    public function slugExists(string $slug, ?int $projectId = null): bool
+    {
+        $projectId = $projectId ?? $this->defaultProjectId;
+
+        try {
+            $this->templateService->get($slug, $projectId);
+
+            return true;
+        } catch (ApiException $e) {
+            if ($e->getCode() === 404) {
+                return false;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
      * Apply the default project ID to the filter if not already set.
      */
     private function applyDefaultProjectId(?ListTemplatesFilter $filter): ?ListTemplatesFilter
@@ -77,6 +114,29 @@ class TemplateServiceWrapper
             projectId: $this->defaultProjectId,
             perPage: $filter->perPage,
             page: $filter->page,
+        );
+    }
+
+    /**
+     * Apply the default project ID to the create data if not already set.
+     */
+    private function applyDefaultProjectIdToCreateData(CreateTemplateData $data): CreateTemplateData
+    {
+        if ($this->defaultProjectId === null) {
+            return $data;
+        }
+
+        if ($data->projectId !== null) {
+            return $data;
+        }
+
+        return new CreateTemplateData(
+            name: $data->name,
+            slug: $data->slug,
+            projectId: $this->defaultProjectId,
+            folderId: $data->folderId,
+            html: $data->html,
+            json: $data->json,
         );
     }
 }
