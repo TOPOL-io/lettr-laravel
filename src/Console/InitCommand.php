@@ -67,6 +67,11 @@ class InitCommand extends Command
     protected bool $usingBladeTemplates = false;
 
     /**
+     * Whether user generated the template enum.
+     */
+    protected bool $generatedEnum = false;
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
@@ -159,7 +164,11 @@ class InitCommand extends Command
                 // API mode - show both examples
                 $this->line('  Send emails using:');
                 $this->newLine();
-                $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
+                if ($this->generatedEnum) {
+                    $this->line("    <fg=cyan>Mail::lettr()->sendTemplate(LettrTemplate::{$className}, \$data, \$to);</>");
+                } else {
+                    $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
+                }
                 $this->newLine();
                 $this->line('  Or with generated Mailables:');
                 $this->newLine();
@@ -581,6 +590,7 @@ PHP;
 
         // Generate enum first if selected
         if ($wantsEnum) {
+            $this->generatedEnum = true;
             $this->call('lettr:generate-enum');
             $this->newLine();
         }
