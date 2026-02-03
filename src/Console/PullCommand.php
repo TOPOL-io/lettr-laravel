@@ -13,6 +13,7 @@ use Lettr\Dto\Template\Template;
 use Lettr\Dto\Template\TemplateDetail;
 use Lettr\Laravel\LettrManager;
 use Lettr\Laravel\Support\DtoGenerator;
+use Lettr\Laravel\Support\SparkpostToBladeConverter;
 
 use function Laravel\Prompts\progress;
 
@@ -27,14 +28,16 @@ class PullCommand extends Command
                             {--with-mailables : Also generate Mailable classes for each template}
                             {--dry-run : Preview what would be downloaded without writing files}
                             {--project= : Pull templates from a specific project ID}
-                            {--template= : Pull only a specific template by slug}';
+                            {--template= : Pull only a specific template by slug}
+                            {--as-html : Save as raw HTML instead of converting to Blade}
+                            {--skip-templates : Skip downloading templates, only generate DTOs and Mailables}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Pull email templates from Lettr API as HTML files';
+    protected $description = 'Pull email templates from Lettr API as Blade files';
 
     /**
      * @var array<int, array{slug: string, path: string}>
@@ -60,6 +63,7 @@ class PullCommand extends Command
         protected readonly LettrManager $lettr,
         protected readonly Filesystem $files,
         protected readonly DtoGenerator $dtoGenerator,
+        protected readonly SparkpostToBladeConverter $bladeConverter,
     ) {
         parent::__construct();
     }
@@ -76,6 +80,8 @@ class PullCommand extends Command
         $templateSlug = $this->option('template');
         $dryRun = (bool) $this->option('dry-run');
         $withMailables = (bool) $this->option('with-mailables');
+        $asHtml = (bool) $this->option('as-html');
+        $skipTemplates = (bool) $this->option('skip-templates');
 
         // Fetch templates
         $templates = $this->fetchTemplates($projectId, $templateSlug);
@@ -87,10 +93,10 @@ class PullCommand extends Command
         }
 
         // Process templates with progress bar
-        $this->processTemplates($templates, $projectId, $dryRun, $withMailables);
+        $this->processTemplates($templates, $projectId, $dryRun, $withMailables, $asHtml, $skipTemplates);
 
         // Output summary
-        $this->outputSummary($dryRun, $withMailables);
+        $this->outputSummary($dryRun, $withMailables, $skipTemplates);
 
         return self::SUCCESS;
     }
@@ -145,17 +151,18 @@ class PullCommand extends Command
      *
      * @param  array<int, Template>  $templates
      */
-    protected function processTemplates(array $templates, ?int $projectId, bool $dryRun, bool $withMailables): void
+    protected function processTemplates(array $templates, ?int $projectId, bool $dryRun, bool $withMailables, bool $asHtml, bool $skipTemplates): void
     {
+        $label = $skipTemplates ? 'Processing templates' : 'Downloading templates';
         $progress = progress(
-            label: 'Downloading templates',
+            label: $label,
             steps: count($templates),
         );
 
         $progress->start();
 
         foreach ($templates as $template) {
-            $this->processTemplate($template, $projectId, $dryRun, $withMailables);
+            $this->processTemplate($template, $projectId, $dryRun, $withMailables, $asHtml, $skipTemplates);
             $progress->advance();
         }
 
@@ -165,24 +172,31 @@ class PullCommand extends Command
     /**
      * Process a single template.
      */
-    protected function processTemplate(Template $template, ?int $projectId, bool $dryRun, bool $withMailables): void
+    protected function processTemplate(Template $template, ?int $projectId, bool $dryRun, bool $withMailables, bool $asHtml, bool $skipTemplates): void
     {
         // Fetch full template details to get the HTML
         $detail = $this->lettr->templates()->get($template->slug, $projectId);
 
-        // Skip templates without HTML
-        if (empty($detail->html)) {
+        // Skip templates without HTML (only relevant when downloading)
+        if (! $skipTemplates && empty($detail->html)) {
             $this->skippedTemplates[] = $detail->slug;
 
             return;
         }
 
-        // Save HTML file
-        $htmlPath = $this->saveHtml($detail, $dryRun);
-        $this->downloadedTemplates[] = [
-            'slug' => $detail->slug,
-            'path' => $htmlPath,
-        ];
+        // Save template file (HTML or Blade) unless skipping
+        if (! $skipTemplates) {
+            if ($asHtml) {
+                $templatePath = $this->saveHtml($detail, $dryRun);
+            } else {
+                $templatePath = $this->saveBlade($detail, $dryRun);
+            }
+
+            $this->downloadedTemplates[] = [
+                'slug' => $detail->slug,
+                'path' => $templatePath,
+            ];
+        }
 
         // Generate Mailable and DTO if requested
         if ($withMailables) {
@@ -198,7 +212,9 @@ class PullCommand extends Command
             }
 
             // Generate Mailable with DTO integration
-            $mailable = $this->generateMailable($detail, $mergeTags, $dryRun);
+            // Use API template slug mode when skipping templates or --as-html
+            $useBlade = ! $skipTemplates && ! $asHtml;
+            $mailable = $this->generateMailable($detail, $mergeTags, $dryRun, $useBlade);
             $this->generatedMailables[] = $mailable;
         }
     }
@@ -238,12 +254,31 @@ class PullCommand extends Command
     }
 
     /**
+     * Save the template as a Blade file.
+     */
+    protected function saveBlade(TemplateDetail $template, bool $dryRun): string
+    {
+        $bladePath = config('lettr.templates.blade_path');
+        $filename = $template->slug.'.blade.php';
+        $fullPath = $bladePath.'/'.$filename;
+        $relativePath = str_replace(base_path().'/', '', $fullPath);
+
+        if (! $dryRun) {
+            $this->ensureDirectoryExists($bladePath);
+            $bladeContent = $this->bladeConverter->convert((string) $template->html);
+            $this->files->put($fullPath, $bladeContent);
+        }
+
+        return $relativePath;
+    }
+
+    /**
      * Generate a Mailable class for the template.
      *
      * @param  array<int, MergeTag>  $mergeTags
      * @return array{class: string, path: string}
      */
-    protected function generateMailable(TemplateDetail $template, array $mergeTags, bool $dryRun): array
+    protected function generateMailable(TemplateDetail $template, array $mergeTags, bool $dryRun, bool $useBlade = true): array
     {
         $mailablePath = config('lettr.templates.mailable_path');
         $namespace = config('lettr.templates.mailable_namespace');
@@ -256,7 +291,9 @@ class PullCommand extends Command
 
         if (! $dryRun) {
             $this->ensureDirectoryExists($mailablePath);
-            $stub = $this->getMailableStub($namespace, $className, $template, $mergeTags);
+            $stub = $useBlade
+                ? $this->getBladeMailableStub($namespace, $className, $template, $mergeTags)
+                : $this->getMailableStub($namespace, $className, $template, $mergeTags);
             $this->files->put($fullPath, $stub);
         }
 
@@ -318,6 +355,54 @@ class PullCommand extends Command
     }
 
     /**
+     * Get the populated Blade mailable stub content.
+     *
+     * @param  array<int, MergeTag>  $mergeTags
+     */
+    protected function getBladeMailableStub(string $namespace, string $className, TemplateDetail $template, array $mergeTags): string
+    {
+        $stubPath = __DIR__.'/../../stubs/blade-mailable.stub';
+        $stub = $this->files->get($stubPath);
+
+        // Convert template name to a readable subject
+        $subject = Str::headline($template->name);
+
+        // Generate DTO-related stub content
+        $hasMergeTags = ! empty($mergeTags);
+        $dtoClassName = $this->dtoGenerator->getDtoClassName($template->slug);
+        $dtoFullClass = $this->dtoGenerator->getFullyQualifiedDtoClassName($template->slug);
+
+        $dtoImport = $hasMergeTags ? "use {$dtoFullClass};" : '';
+        $dtoProperty = $hasMergeTags ? "public readonly {$dtoClassName} \$data," : '';
+        $withMergeTagsMethod = $hasMergeTags ? $this->generateWithMergeTagsMethod() : '';
+
+        // Generate Blade view path (dot notation for Laravel views)
+        $bladeView = 'emails.lettr.'.$template->slug;
+
+        return str_replace(
+            [
+                '{{ namespace }}',
+                '{{ class }}',
+                '{{ bladeView }}',
+                '{{ subject }}',
+                '{{ dtoImport }}',
+                '{{ dtoProperty }}',
+                '{{ withMergeTagsMethod }}',
+            ],
+            [
+                $namespace,
+                $className,
+                $bladeView,
+                $subject,
+                $dtoImport,
+                $dtoProperty,
+                $withMergeTagsMethod,
+            ],
+            $stub
+        );
+    }
+
+    /**
      * Generate the withMergeTags method for the mailable.
      */
     protected function generateWithMergeTagsMethod(): string
@@ -357,18 +442,20 @@ PHP;
     /**
      * Output the summary of downloaded templates and generated mailables.
      */
-    protected function outputSummary(bool $dryRun, bool $withMailables): void
+    protected function outputSummary(bool $dryRun, bool $withMailables, bool $skipTemplates = false): void
     {
         $this->newLine();
 
-        $prefix = $dryRun ? 'Would download' : 'Downloaded';
-        $this->components->twoColumnDetail("<fg=gray>{$prefix}:</>");
+        if (! $skipTemplates && ! empty($this->downloadedTemplates)) {
+            $prefix = $dryRun ? 'Would download' : 'Downloaded';
+            $this->components->twoColumnDetail("<fg=gray>{$prefix}:</>");
 
-        foreach ($this->downloadedTemplates as $template) {
-            $this->components->twoColumnDetail(
-                "  <fg=green>✓</> {$template['slug']}",
-                $template['path']
-            );
+            foreach ($this->downloadedTemplates as $template) {
+                $this->components->twoColumnDetail(
+                    "  <fg=green>✓</> {$template['slug']}",
+                    $template['path']
+                );
+            }
         }
 
         if ($withMailables && ! empty($this->generatedDtos)) {
@@ -397,7 +484,7 @@ PHP;
             }
         }
 
-        if (! empty($this->skippedTemplates)) {
+        if (! $skipTemplates && ! empty($this->skippedTemplates)) {
             $this->newLine();
             $this->components->twoColumnDetail('<fg=gray>Skipped (no HTML):</>');
 
@@ -411,8 +498,15 @@ PHP;
 
         $this->newLine();
 
-        $count = count($this->downloadedTemplates);
-        $action = $dryRun ? 'Would download' : 'Downloaded';
-        $this->components->info("Done! {$action} {$count} template(s).");
+        if ($skipTemplates) {
+            $mailableCount = count($this->generatedMailables);
+            $dtoCount = count($this->generatedDtos);
+            $action = $dryRun ? 'Would generate' : 'Generated';
+            $this->components->info("Done! {$action} {$mailableCount} mailable(s) and {$dtoCount} DTO(s).");
+        } else {
+            $count = count($this->downloadedTemplates);
+            $action = $dryRun ? 'Would download' : 'Downloaded';
+            $this->components->info("Done! {$action} {$count} template(s).");
+        }
     }
 }

@@ -67,13 +67,42 @@ beforeEach(function () {
     $this->app->instance(Filesystem::class, $this->filesystem);
 
     config()->set('lettr.templates.html_path', base_path('resources/templates/lettr'));
+    config()->set('lettr.templates.blade_path', base_path('resources/views/emails/lettr'));
     config()->set('lettr.templates.mailable_path', base_path('app/Mail/Lettr'));
     config()->set('lettr.templates.mailable_namespace', 'App\\Mail\\Lettr');
     config()->set('lettr.templates.dto_path', base_path('app/DataTransferObjects/Lettr'));
     config()->set('lettr.templates.dto_namespace', 'App\\DataTransferObjects\\Lettr');
 });
 
-it('pulls templates and saves them as html files', function () {
+it('pulls templates and saves them as blade files by default', function () {
+    $templates = [createTemplate(1, 'Welcome Email', 'welcome-email')];
+    $templateDetail = createTemplateDetail(1, 'Welcome Email', 'welcome-email', '<html><body>Welcome!</body></html>');
+
+    $this->templateService
+        ->shouldReceive('list')
+        ->once()
+        ->andReturn(createListResponse($templates));
+
+    $this->templateService
+        ->shouldReceive('get')
+        ->with('welcome-email', null)
+        ->once()
+        ->andReturn($templateDetail);
+
+    $this->filesystem->shouldReceive('isDirectory')->andReturn(true);
+    $this->filesystem
+        ->shouldReceive('put')
+        ->once()
+        ->withArgs(function ($path, $content) {
+            return str_contains($path, 'welcome-email.blade.php')
+                && $content === '<html><body>Welcome!</body></html>';
+        });
+
+    $this->artisan(PullCommand::class)
+        ->assertSuccessful();
+});
+
+it('pulls templates and saves them as html files with --as-html flag', function () {
     $templates = [createTemplate(1, 'Welcome Email', 'welcome-email')];
     $templateDetail = createTemplateDetail(1, 'Welcome Email', 'welcome-email', '<html><body>Welcome!</body></html>');
 
@@ -97,7 +126,7 @@ it('pulls templates and saves them as html files', function () {
                 && $content === '<html><body>Welcome!</body></html>';
         });
 
-    $this->artisan(PullCommand::class)
+    $this->artisan(PullCommand::class, ['--as-html' => true])
         ->assertSuccessful();
 });
 
@@ -133,7 +162,7 @@ it('skips templates without html content', function () {
     $this->filesystem
         ->shouldReceive('put')
         ->once()
-        ->withArgs(fn ($path, $content) => str_contains($path, 'valid-template.html'));
+        ->withArgs(fn ($path, $content) => str_contains($path, 'valid-template.blade.php'));
 
     $this->artisan(PullCommand::class)
         ->assertSuccessful()
@@ -236,7 +265,7 @@ it('filters templates by slug when template option is provided', function () {
     $this->filesystem
         ->shouldReceive('put')
         ->once()
-        ->withArgs(fn ($path) => str_contains($path, 'second-template.html'));
+        ->withArgs(fn ($path) => str_contains($path, 'second-template.blade.php'));
 
     $this->artisan(PullCommand::class, ['--template' => 'second-template'])
         ->assertSuccessful();
@@ -312,8 +341,8 @@ it('generates mailable classes when with-mailables option is provided', function
 
     $this->filesystem
         ->shouldReceive('get')
-        ->with(Mockery::pattern('/mailable\.stub$/'))
-        ->andReturn(file_get_contents(__DIR__.'/../../stubs/mailable.stub'));
+        ->with(Mockery::pattern('/blade-mailable\.stub$/'))
+        ->andReturn(file_get_contents(__DIR__.'/../../stubs/blade-mailable.stub'));
 
     $this->filesystem
         ->shouldReceive('get')

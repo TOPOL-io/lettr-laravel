@@ -8,13 +8,13 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Lettr\Laravel\Concerns\DisplayHelper;
 use Lettr\Laravel\LettrManager;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\note;
-use function Laravel\Prompts\outro;
 use function Laravel\Prompts\password;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\text;
@@ -45,9 +45,21 @@ class InitCommand extends Command
     }
 
     /**
-     * Execute the console command.
+     * Async promise for fetching domains.
      */
     protected ?PromiseInterface $domainsPromise = null;
+
+    /**
+     * Async promise for fetching templates.
+     */
+    protected ?PromiseInterface $templatesPromise = null;
+
+    /**
+     * Sample template for personalized examples.
+     *
+     * @var array{slug: string, name: string}|null
+     */
+    protected ?array $sampleTemplate = null;
 
     /**
      * Execute the console command.
@@ -56,8 +68,8 @@ class InitCommand extends Command
     {
         $this->displayLettrHeader('Init');
 
-        // Start fetching domains async immediately if API key exists
-        $this->startAsyncDomainsFetch();
+        // Start fetching domains and templates async immediately if API key exists
+        $this->startAsyncFetches();
 
         // Step 1: API Key
         $apiKey = $this->setupApiKey();
@@ -78,8 +90,8 @@ class InitCommand extends Command
         $this->writeEnvVariable('LETTR_API_KEY', $apiKey);
         config()->set('lettr.api_key', $apiKey);
 
-        // Restart async domains fetch with the new/confirmed API key
-        $this->startAsyncDomainsFetch();
+        // Restart async fetches with the new/confirmed API key
+        $this->startAsyncFetches();
 
         note('Configuration saved to .env and config/lettr.php');
 
@@ -88,11 +100,16 @@ class InitCommand extends Command
 
         // Step 6: Setup sending domain (silently fetch, skip if fails)
         $domainOptions = $this->fetchDomains();
+        $hasSendingDomain = false;
         if ($domainOptions !== null) {
             $this->setupSendingDomain($domainOptions);
+            $hasSendingDomain = true;
         }
 
-        // Step 7: Set MAIL_MAILER (only for local templates flow)
+        // Step 7: Fetch a sample template for personalized examples
+        $this->fetchSampleTemplate();
+
+        // Step 8: Set MAIL_MAILER (only for local templates flow)
         if ($keptLocalTemplates) {
             $setMailer = confirm(
                 label: 'Set MAIL_MAILER=lettr in your .env?',
@@ -106,7 +123,7 @@ class InitCommand extends Command
         }
 
         // Final success message
-        $this->displayOutro($keptLocalTemplates);
+        $this->displayOutro($keptLocalTemplates, $hasSendingDomain);
 
         return self::SUCCESS;
     }
@@ -114,7 +131,7 @@ class InitCommand extends Command
     /**
      * Display the final success message.
      */
-    protected function displayOutro(bool $keptLocalTemplates): void
+    protected function displayOutro(bool $keptLocalTemplates, bool $hasSendingDomain): void
     {
         $this->newLine();
         $this->output->writeln($this->displayBadge(' ✓ Setup Complete '));
@@ -124,16 +141,27 @@ class InitCommand extends Command
             $this->line('  Your emails will be sent through Lettr.');
             $this->line('  Templates remain in your codebase for version control.');
         } else {
+            // Use sample template for personalized examples, or fall back to generic
+            $slug = $this->sampleTemplate['slug'] ?? 'welcome';
+            $className = $this->sampleTemplate ? Str::studly($this->sampleTemplate['slug']) : 'Welcome';
+
             $this->line('  Send emails using:');
             $this->newLine();
-            $this->line('    <fg=cyan>Mail::lettr()->sendTemplate(\'welcome\', $data, $to);</>');
+            $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
             $this->newLine();
             $this->line('  Or with generated Mailables:');
             $this->newLine();
-            $this->line('    <fg=cyan>Mail::to($user)->send(new Welcome($data));</>');
+            $this->line("    <fg=cyan>Mail::to(\$user)->send(new {$className}(\$data));</>");
         }
 
         $this->newLine();
+
+        if (! $hasSendingDomain) {
+            $this->line('  <fg=yellow>⚠</> <fg=yellow>No verified sending domain found.</>');
+            $this->line('    Set up your domain: '.$this->hyperlink('https://app.lettr.com/domains/sending', 'https://app.lettr.com/domains/sending'));
+            $this->newLine();
+        }
+
         $this->line('  <fg=gray>Docs:</> '.$this->hyperlink('https://docs.lettr.com', 'https://docs.lettr.com'));
         $this->newLine();
     }
@@ -261,9 +289,9 @@ PHP;
     }
 
     /**
-     * Start fetching domains asynchronously in the background.
+     * Start fetching domains and templates asynchronously in the background.
      */
-    protected function startAsyncDomainsFetch(): void
+    protected function startAsyncFetches(): void
     {
         $apiKey = config('lettr.api_key');
 
@@ -274,6 +302,10 @@ PHP;
         $this->domainsPromise = Http::async()
             ->withToken($apiKey)
             ->get('https://app.lettr.com/api/domains');
+
+        $this->templatesPromise = Http::async()
+            ->withToken($apiKey)
+            ->get('https://app.lettr.com/api/templates', ['per_page' => 1]);
     }
 
     /**
@@ -327,6 +359,53 @@ PHP;
         }
 
         return empty($sendableDomains) ? null : $sendableDomains;
+    }
+
+    /**
+     * Fetch a sample template for personalized examples.
+     */
+    protected function fetchSampleTemplate(): void
+    {
+        // Try to get result from async promise first
+        if ($this->templatesPromise !== null) {
+            try {
+                /** @var \Illuminate\Http\Client\Response $response */
+                $response = $this->templatesPromise->wait();
+
+                if ($response->successful()) {
+                    /** @var array<int, array{slug: string, name: string}> $templates */
+                    $templates = $response->json('data.templates', []);
+
+                    if (! empty($templates)) {
+                        $this->sampleTemplate = [
+                            'slug' => $templates[0]['slug'],
+                            'name' => $templates[0]['name'],
+                        ];
+
+                        return;
+                    }
+                }
+            } catch (\Throwable) {
+                // Fall through to SDK approach
+            }
+        }
+
+        // Fall back to SDK (synchronous)
+        try {
+            /** @var LettrManager $lettr */
+            $lettr = app('lettr');
+            $response = $lettr->templates()->list(new \Lettr\Dto\Template\ListTemplatesFilter(perPage: 1));
+            $templates = $response->templates->all();
+
+            if (! empty($templates)) {
+                $this->sampleTemplate = [
+                    'slug' => $templates[0]->slug,
+                    'name' => $templates[0]->name,
+                ];
+            }
+        } catch (\Throwable) {
+            // Silently fail - will use default examples
+        }
     }
 
     /**
@@ -435,34 +514,26 @@ PHP;
         $downloadTemplates = confirm(
             label: 'Do you want to download templates from your Lettr account?',
             default: false,
-            hint: 'This will pull all templates as local HTML files',
+            hint: 'This will pull templates as Blade files for local rendering',
         );
 
-        if ($downloadTemplates) {
-            $this->offerTypeGeneration(withMailables: true);
-        } else {
-            $this->offerTypeGeneration(withMailables: false);
-        }
+        $this->offerTypeGeneration(downloadTemplates: $downloadTemplates);
     }
 
     /**
      * Offer to generate type-safe classes (enum, DTOs, mailables).
      *
-     * @param  bool  $withMailables  Whether to offer mailables option (requires template download)
+     * @param  bool  $downloadTemplates  Whether user wants to download templates as Blade files
      */
-    protected function offerTypeGeneration(bool $withMailables = true): void
+    protected function offerTypeGeneration(bool $downloadTemplates = true): void
     {
         $options = [
             'enum' => 'Template enum (LettrTemplate::WelcomeEmail)',
             'dtos' => 'DTOs for merge tags (WelcomeEmailData)',
+            'mailables' => 'Mailable classes (WelcomeEmail extends LettrMailable)',
         ];
 
-        $defaults = ['enum', 'dtos'];
-
-        if ($withMailables) {
-            $options['mailables'] = 'Mailable classes (WelcomeEmail extends LettrMailable)';
-            $defaults[] = 'mailables';
-        }
+        $defaults = ['enum', 'dtos', 'mailables'];
 
         $generate = multiselect(
             label: 'Which type-safe classes do you want to generate?',
@@ -483,26 +554,27 @@ PHP;
 
         $this->newLine();
 
-        // When mailables is selected, use pull --with-mailables (downloads HTML + generates DTOs + mailables)
-        if (in_array('mailables', $generate, true)) {
-            if (in_array('enum', $generate, true)) {
-                $this->call('lettr:generate-enum');
-                $this->newLine();
-            }
+        $wantsMailables = in_array('mailables', $generate, true);
+        $wantsEnum = in_array('enum', $generate, true);
+        $wantsDtos = in_array('dtos', $generate, true);
 
-            $this->call('lettr:pull', ['--with-mailables' => true]);
-        } else {
-            // No mailables - generate enum and/or DTOs separately
-            if (in_array('enum', $generate, true)) {
-                $this->call('lettr:generate-enum');
-            }
+        // Generate enum first if selected
+        if ($wantsEnum) {
+            $this->call('lettr:generate-enum');
+            $this->newLine();
+        }
 
-            if (in_array('dtos', $generate, true)) {
-                if (in_array('enum', $generate, true)) {
-                    $this->newLine();
-                }
-                $this->call('lettr:generate-dtos');
+        if ($wantsMailables) {
+            // Mailables require pull command (generates DTOs + mailables)
+            $pullOptions = ['--with-mailables' => true];
+            if (! $downloadTemplates) {
+                // Skip template downloads, generate API-based mailables
+                $pullOptions['--skip-templates'] = true;
             }
+            $this->call('lettr:pull', $pullOptions);
+        } elseif ($wantsDtos) {
+            // Only DTOs requested (no mailables)
+            $this->call('lettr:generate-dtos');
         }
 
         $this->newLine();
