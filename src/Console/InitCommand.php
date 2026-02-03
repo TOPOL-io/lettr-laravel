@@ -321,13 +321,17 @@ PHP;
             return;
         }
 
-        $this->domainsPromise = Http::async()
+        /** @var PromiseInterface $domainsPromise */
+        $domainsPromise = Http::async()
             ->withToken($apiKey)
             ->get('https://app.lettr.com/api/domains');
+        $this->domainsPromise = $domainsPromise;
 
-        $this->templatesPromise = Http::async()
+        /** @var PromiseInterface $templatesPromise */
+        $templatesPromise = Http::async()
             ->withToken($apiKey)
             ->get('https://app.lettr.com/api/templates', ['per_page' => 1]);
+        $this->templatesPromise = $templatesPromise;
     }
 
     /**
