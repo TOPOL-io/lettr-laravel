@@ -134,7 +134,7 @@ class InitCommand extends Command
         }
 
         $this->newLine();
-        $this->line('  <fg=gray>Docs:</> '.$this->hyperlink('https://lettr.com/docs', 'https://lettr.com/docs'));
+        $this->line('  <fg=gray>Docs:</> '.$this->hyperlink('https://docs.lettr.com', 'https://docs.lettr.com'));
         $this->newLine();
     }
 
@@ -434,7 +434,7 @@ PHP;
     {
         $downloadTemplates = confirm(
             label: 'Do you want to download templates from your Lettr account?',
-            default: true,
+            default: false,
             hint: 'This will pull all templates as local HTML files',
         );
 
