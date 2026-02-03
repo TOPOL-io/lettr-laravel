@@ -62,6 +62,11 @@ class InitCommand extends Command
     protected ?array $sampleTemplate = null;
 
     /**
+     * Whether user chose to use Blade templates (local rendering).
+     */
+    protected bool $usingBladeTemplates = false;
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
@@ -145,13 +150,21 @@ class InitCommand extends Command
             $slug = $this->sampleTemplate['slug'] ?? 'welcome';
             $className = $this->sampleTemplate ? Str::studly($this->sampleTemplate['slug']) : 'Welcome';
 
-            $this->line('  Send emails using:');
-            $this->newLine();
-            $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
-            $this->newLine();
-            $this->line('  Or with generated Mailables:');
-            $this->newLine();
-            $this->line("    <fg=cyan>Mail::to(\$user)->send(new {$className}(\$data));</>");
+            if ($this->usingBladeTemplates) {
+                // Blade mode - only show Mailable example
+                $this->line('  Send emails using:');
+                $this->newLine();
+                $this->line("    <fg=cyan>Mail::to(\$user)->send(new {$className}(\$data));</>");
+            } else {
+                // API mode - show both examples
+                $this->line('  Send emails using:');
+                $this->newLine();
+                $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
+                $this->newLine();
+                $this->line('  Or with generated Mailables:');
+                $this->newLine();
+                $this->line("    <fg=cyan>Mail::to(\$user)->send(new {$className}(\$data));</>");
+            }
         }
 
         $this->newLine();
@@ -500,8 +513,9 @@ PHP;
         $this->call('lettr:push');
         $this->newLine();
 
-        // Offer to generate type-safe classes (templates already local, so offer mailables)
-        $this->offerTypeGeneration(withMailables: true);
+        // Offer to generate type-safe classes
+        // Templates are already local, no need to download, but use Blade mode
+        $this->offerTypeGeneration(downloadTemplates: false, useBladeMode: true);
 
         return false;
     }
@@ -523,10 +537,14 @@ PHP;
     /**
      * Offer to generate type-safe classes (enum, DTOs, mailables).
      *
-     * @param  bool  $downloadTemplates  Whether user wants to download templates as Blade files
+     * @param  bool  $downloadTemplates  Whether to download templates from Lettr
+     * @param  bool|null  $useBladeMode  Whether to generate Blade-based mailables (null = same as $downloadTemplates)
      */
-    protected function offerTypeGeneration(bool $downloadTemplates = true): void
+    protected function offerTypeGeneration(bool $downloadTemplates = true, ?bool $useBladeMode = null): void
     {
+        // Default: use Blade mode if downloading templates
+        $useBladeMode ??= $downloadTemplates;
+
         $options = [
             'enum' => 'Template enum (LettrTemplate::WelcomeEmail)',
             'dtos' => 'DTOs for merge tags (WelcomeEmailData)',
@@ -565,12 +583,22 @@ PHP;
         }
 
         if ($wantsMailables) {
+            // Track whether we're using Blade mode for the outro message
+            $this->usingBladeTemplates = $useBladeMode;
+
             // Mailables require pull command (generates DTOs + mailables)
             $pullOptions = ['--with-mailables' => true];
+
             if (! $downloadTemplates) {
-                // Skip template downloads, generate API-based mailables
+                // Skip template downloads
                 $pullOptions['--skip-templates'] = true;
             }
+
+            if (! $useBladeMode) {
+                // Generate API-based mailables (with templateSlug)
+                $pullOptions['--as-html'] = true;
+            }
+
             $this->call('lettr:pull', $pullOptions);
         } elseif ($wantsDtos) {
             // Only DTOs requested (no mailables)
