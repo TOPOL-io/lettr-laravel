@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Http;
 use Lettr\Laravel\Console\InitCommand;
 use Lettr\Laravel\LettrManager;
 
@@ -444,6 +445,217 @@ it('skips mail mailer prompt when already set to lettr', function () {
         ->expectsConfirmation('config/lettr.php already exists. Overwrite it?', 'no')
         // No MAIL_MAILER confirmation here - it should be skipped
         ->expectsConfirmation('Do you have existing email templates in your codebase?', 'no')
+        ->expectsConfirmation('Do you want to download templates from your Lettr account?', 'no')
+        ->expectsQuestion('Which type-safe classes do you want to generate?', [])
+        ->assertSuccessful();
+});
+
+it('skips project selection when account has no projects', function () {
+    $envPath = base_path('.env');
+    $configPath = config_path('lettr.php');
+    $mailConfigPath = config_path('mail.php');
+
+    // Mock projects API response (empty)
+    $projectCollection = Mockery::mock();
+    $projectCollection->shouldReceive('all')->andReturn([]);
+
+    $listProjectsResponse = (object) ['projects' => $projectCollection];
+
+    $projectsResource = Mockery::mock();
+    $projectsResource->shouldReceive('list')->andReturn($listProjectsResponse);
+
+    $this->lettrManager->shouldReceive('projects')->andReturn($projectsResource);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($configPath)
+        ->andReturn(false);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($mailConfigPath)
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($mailConfigPath)
+        ->andReturn("<?php\n\nreturn [\n    'mailers' => [\n    ],\n];");
+
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($mailConfigPath, Mockery::any())
+        ->once();
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($envPath)
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($envPath)
+        ->andReturn("APP_NAME=Laravel\n");
+
+    // Should write API key but NOT project ID
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($envPath, Mockery::on(function ($content) {
+            return str_contains($content, 'LETTR_API_KEY=test_api_key')
+                && ! str_contains($content, 'LETTR_DEFAULT_PROJECT_ID');
+        }))
+        ->once();
+
+    $this->artisan(InitCommand::class)
+        ->expectsQuestion(apiKeyQuestion(), 'test_api_key')
+        ->expectsConfirmation('Set MAIL_MAILER=lettr in your .env?', 'no')
+        // No project selection prompt should appear
+        ->expectsConfirmation('Do you have existing email templates in your codebase?', 'no')
+        ->expectsConfirmation('Do you want to download templates from your Lettr account?', 'no')
+        ->expectsQuestion('Which type-safe classes do you want to generate?', [])
+        ->assertSuccessful();
+});
+
+it('skips project selection when account has one project', function () {
+    $envPath = base_path('.env');
+    $configPath = config_path('lettr.php');
+    $mailConfigPath = config_path('mail.php');
+
+    // Mock single project
+    $project = new class
+    {
+        public int $id = 1;
+
+        public string $name = 'My Project';
+
+        public string $emoji = '🚀';
+    };
+
+    $projectCollection = Mockery::mock();
+    $projectCollection->shouldReceive('all')->andReturn([$project]);
+
+    $listProjectsResponse = (object) ['projects' => $projectCollection];
+
+    $projectsResource = Mockery::mock();
+    $projectsResource->shouldReceive('list')->andReturn($listProjectsResponse);
+
+    $this->lettrManager->shouldReceive('projects')->andReturn($projectsResource);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($configPath)
+        ->andReturn(false);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($mailConfigPath)
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($mailConfigPath)
+        ->andReturn("<?php\n\nreturn [\n    'mailers' => [\n    ],\n];");
+
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($mailConfigPath, Mockery::any())
+        ->once();
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($envPath)
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($envPath)
+        ->andReturn("APP_NAME=Laravel\n");
+
+    // Should write API key but NOT project ID (1 project = skip)
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($envPath, Mockery::on(function ($content) {
+            return str_contains($content, 'LETTR_API_KEY=test_api_key')
+                && ! str_contains($content, 'LETTR_DEFAULT_PROJECT_ID');
+        }))
+        ->once();
+
+    $this->artisan(InitCommand::class)
+        ->expectsQuestion(apiKeyQuestion(), 'test_api_key')
+        ->expectsConfirmation('Set MAIL_MAILER=lettr in your .env?', 'no')
+        // No project selection prompt should appear
+        ->expectsConfirmation('Do you have existing email templates in your codebase?', 'no')
+        ->expectsConfirmation('Do you want to download templates from your Lettr account?', 'no')
+        ->expectsQuestion('Which type-safe classes do you want to generate?', [])
+        ->assertSuccessful();
+});
+
+it('prompts project selection when account has multiple projects', function () {
+    $envPath = base_path('.env');
+    $configPath = config_path('lettr.php');
+    $mailConfigPath = config_path('mail.php');
+
+    // Mock HTTP response for projects
+    Http::fake([
+        'https://app.lettr.com/api/projects' => Http::response([
+            'data' => [
+                'projects' => [
+                    ['id' => 1, 'name' => 'Project One', 'emoji' => '🚀'],
+                    ['id' => 2, 'name' => 'Project Two', 'emoji' => '🎯'],
+                ],
+            ],
+        ], 200),
+        'https://app.lettr.com/api/*' => Http::response([], 404),
+    ]);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($configPath)
+        ->andReturn(false);
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($mailConfigPath)
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($mailConfigPath)
+        ->andReturn("<?php\n\nreturn [\n    'mailers' => [\n    ],\n];");
+
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($mailConfigPath, Mockery::any())
+        ->once();
+
+    $this->filesystem
+        ->shouldReceive('exists')
+        ->with($envPath)
+        ->atLeast()->once()
+        ->andReturn(true);
+
+    $this->filesystem
+        ->shouldReceive('get')
+        ->with($envPath)
+        ->atLeast()->once()
+        ->andReturn("APP_NAME=Laravel\n", "APP_NAME=Laravel\nLETTR_API_KEY=test_api_key\n");
+
+    // Should write API key first
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($envPath, Mockery::on(fn ($content) => str_contains($content, 'LETTR_API_KEY=test_api_key')))
+        ->once();
+
+    // Then should write project ID
+    $this->filesystem
+        ->shouldReceive('put')
+        ->with($envPath, Mockery::on(fn ($content) => str_contains($content, 'LETTR_DEFAULT_PROJECT_ID=2')))
+        ->once();
+
+    $this->artisan(InitCommand::class)
+        ->expectsQuestion(apiKeyQuestion(), 'test_api_key')
+        ->expectsConfirmation('Set MAIL_MAILER=lettr in your .env?', 'no')
+        ->expectsConfirmation('Do you have existing email templates in your codebase?', 'no')
+        ->expectsQuestion('Select a default project', 2)
         ->expectsConfirmation('Do you want to download templates from your Lettr account?', 'no')
         ->expectsQuestion('Which type-safe classes do you want to generate?', [])
         ->assertSuccessful();

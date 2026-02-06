@@ -9,6 +9,7 @@ use Lettr\Laravel\Services\TemplateServiceWrapper;
 use Lettr\Lettr;
 use Lettr\Services\DomainService;
 use Lettr\Services\EmailService;
+use Lettr\Services\ProjectService;
 use Lettr\Services\WebhookService;
 
 /**
@@ -16,6 +17,7 @@ use Lettr\Services\WebhookService;
  *
  * @property-read EmailService $emails
  * @property-read DomainService $domains
+ * @property-read ProjectService $projects
  * @property-read WebhookService $webhooks
  * @property-read TemplateServiceWrapper $templates
  */
@@ -62,6 +64,14 @@ class LettrManager
     }
 
     /**
+     * Get the project service.
+     */
+    public function projects(): ProjectService
+    {
+        return $this->lettr()->projects();
+    }
+
+    /**
      * Get the webhook service.
      */
     public function webhooks(): WebhookService
@@ -100,6 +110,7 @@ class LettrManager
         return match ($name) {
             'emails' => $this->emails(),
             'domains' => $this->domains(),
+            'projects' => $this->projects(),
             'webhooks' => $this->webhooks(),
             'templates' => $this->templates(),
             default => throw new \InvalidArgumentException("Unknown service: {$name}"),
