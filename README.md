@@ -53,7 +53,7 @@ use App\Mail\Lettr\WelcomeEmail;
 Mail::to('user@example.com')->send(new WelcomeEmail($data));
 
 // Or send templates inline
-Mail::lettr()->to('user@example.com')->sendTemplate('welcome-email', $data);
+Mail::lettr()->to('user@example.com')->sendTemplate('welcome-email', substitutionData: $data);
 ```
 
 ## Manual Setup
@@ -781,7 +781,7 @@ Generated DTOs implement `Arrayable` and can be passed directly to `sendTemplate
 ```php
 $data = new WelcomeEmailData(userName: 'John', activationUrl: '...');
 
-Mail::lettr()->to('user@example.com')->sendTemplate('welcome-email', $data);
+Mail::lettr()->to('user@example.com')->sendTemplate('welcome-email', substitutionData: $data);
 ```
 
 ## Development
