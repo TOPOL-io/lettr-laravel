@@ -186,9 +186,9 @@ class InitCommand extends Command
                 $this->line('  Send emails using:');
                 $this->newLine();
                 if ($this->generatedEnum) {
-                    $this->line("    <fg=cyan>Mail::lettr()->sendTemplate(LettrTemplate::{$className}, \$data, \$to);</>");
+                    $this->line("    <fg=cyan>Mail::lettr()->to(\$to)->sendTemplate(LettrTemplate::{$className}, substitutionData: \$data);</>");
                 } else {
-                    $this->line("    <fg=cyan>Mail::lettr()->sendTemplate('{$slug}', \$data, \$to);</>");
+                    $this->line("    <fg=cyan>Mail::lettr()->to(\$to)->sendTemplate('{$slug}', substitutionData: \$data);</>");
                 }
                 $this->newLine();
                 $this->line('  Or with generated Mailables:');

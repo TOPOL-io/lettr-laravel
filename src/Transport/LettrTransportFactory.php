@@ -46,10 +46,15 @@ class LettrTransportFactory extends AbstractTransport
         $envelope = $message->getEnvelope();
 
         try {
+            $subject = $email->getSubject();
+
             $builder = $this->lettr->emails()->create()
                 ->from($envelope->getSender()->getAddress(), $envelope->getSender()->getName())
-                ->to($this->stringifyAddresses($this->getToRecipients($email)))
-                ->subject($email->getSubject() ?? '');
+                ->to($this->stringifyAddresses($this->getToRecipients($email)));
+
+            if ($subject !== null && $subject !== '') {
+                $builder->subject($subject);
+            }
 
             // Check for Lettr template headers
             $templateSlug = $this->getHeader($email, 'X-Lettr-Template-Slug');

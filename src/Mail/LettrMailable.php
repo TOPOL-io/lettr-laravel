@@ -87,6 +87,21 @@ abstract class LettrMailable extends Mailable
     }
 
     /**
+     * Build the subject for the message.
+     *
+     * When using a Lettr template without an explicit subject, skip setting one
+     * so the template's own subject is used instead of an auto-generated fallback.
+     */
+    protected function buildSubject($message): static
+    {
+        if ($this->templateSlug !== null && ! $this->subject) {
+            return $this;
+        }
+
+        return parent::buildSubject($message);
+    }
+
+    /**
      * Get the message envelope.
      */
     public function envelope(): Envelope
