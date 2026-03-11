@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Lettr\Laravel\Console\InitCommand;
 use Lettr\Laravel\LettrManager;
@@ -23,9 +24,9 @@ beforeEach(function () {
     config()->set('lettr.api_key', '');
 
     // Mock HTTP facade to prevent real async requests in startAsyncFetches
-    \Illuminate\Support\Facades\Http::fake([
-        'https://app.lettr.com/api/auth/check' => \Illuminate\Support\Facades\Http::response(['team_id' => 1], 200),
-        '*' => \Illuminate\Support\Facades\Http::response(['data' => ['domains' => [], 'templates' => []]], 200),
+    Http::fake([
+        'https://app.lettr.com/api/auth/check' => Http::response(['team_id' => 1], 200),
+        '*' => Http::response(['data' => ['domains' => [], 'templates' => []]], 200),
     ]);
 });
 
@@ -459,7 +460,7 @@ it('validates existing api key and warns if invalid', function () {
     config()->set('lettr.api_key', 'invalid_key');
 
     // Clear and override HTTP fake for this test - invalid_key gets 401, valid_key gets 200
-    Http::swap(new \Illuminate\Http\Client\Factory);
+    Http::swap(new Factory);
     Http::fake([
         'https://app.lettr.com/api/auth/check' => function ($request) {
             // Check the token in the authorization header
@@ -530,7 +531,7 @@ it('validates existing api key and warns if invalid', function () {
 
 it('validates newly entered api key and prompts again if invalid', function () {
     // Clear and override HTTP fake for this test - invalid_key gets 401, valid_key gets 200
-    Http::swap(new \Illuminate\Http\Client\Factory);
+    Http::swap(new Factory);
     Http::fake([
         'https://app.lettr.com/api/auth/check' => function ($request) {
             // Check the token in the authorization header

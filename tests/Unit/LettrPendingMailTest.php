@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Facades\Mail;
 use Lettr\Laravel\Mail\InlineLettrMailable;
 use Lettr\Laravel\Mail\LettrPendingMail;
@@ -51,7 +52,7 @@ it('works with Mail::fake()', function () {
 it('accepts Arrayable objects in sendTemplate', function () {
     Mail::fake();
 
-    $dto = new class implements \Illuminate\Contracts\Support\Arrayable
+    $dto = new class implements Arrayable
     {
         public function toArray(): array
         {
@@ -69,7 +70,7 @@ it('accepts Arrayable objects in sendTemplate', function () {
 it('converts Arrayable to array before passing to InlineLettrMailable', function () {
     Mail::fake();
 
-    $dto = new class implements \Illuminate\Contracts\Support\Arrayable
+    $dto = new class implements Arrayable
     {
         public function toArray(): array
         {
@@ -83,7 +84,7 @@ it('converts Arrayable to array before passing to InlineLettrMailable', function
 
     Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
         // Verify the mailable was created with the correct substitution data
-        $reflection = new \ReflectionClass($mailable);
+        $reflection = new ReflectionClass($mailable);
         $property = $reflection->getProperty('substitutionData');
         $property->setAccessible(true);
         $data = $property->getValue($mailable);
@@ -100,7 +101,7 @@ it('still accepts plain arrays in sendTemplate', function () {
         ->sendTemplate('plain-array-template', substitutionData: ['key' => 'value']);
 
     Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
-        $reflection = new \ReflectionClass($mailable);
+        $reflection = new ReflectionClass($mailable);
         $property = $reflection->getProperty('substitutionData');
         $property->setAccessible(true);
         $data = $property->getValue($mailable);

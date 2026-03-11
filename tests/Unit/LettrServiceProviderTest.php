@@ -1,5 +1,6 @@
 <?php
 
+use Lettr\Laravel\Exceptions\ApiKeyIsMissing;
 use Lettr\Laravel\Facades\Lettr;
 use Lettr\Laravel\LettrManager;
 use Lettr\Lettr as LettrClient;
@@ -26,4 +27,4 @@ it('throws exception when api key is missing', function () {
 
     // The exception is thrown when trying to use the SDK, not when resolving the manager
     app('lettr')->sdk();
-})->throws(\Lettr\Laravel\Exceptions\ApiKeyIsMissing::class);
+})->throws(ApiKeyIsMissing::class);

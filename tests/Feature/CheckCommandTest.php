@@ -1,6 +1,7 @@
 <?php
 
 use Lettr\Contracts\TransporterContract;
+use Lettr\Exceptions\ApiException;
 use Lettr\Exceptions\UnauthorizedException;
 use Lettr\Laravel\Console\CheckCommand;
 use Lettr\Laravel\LettrManager;
@@ -192,7 +193,7 @@ it('handles API error during domain check gracefully', function () {
 
     $this->transporter->shouldReceive('get')
         ->with('domains')
-        ->andThrow(new \Lettr\Exceptions\ApiException('Connection error'));
+        ->andThrow(new ApiException('Connection error'));
 
     $this->artisan(CheckCommand::class)
         ->assertFailed()

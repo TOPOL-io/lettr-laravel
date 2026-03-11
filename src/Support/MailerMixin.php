@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Lettr\Laravel\Support;
 
+use Illuminate\Mail\Mailer;
 use Lettr\Laravel\Mail\LettrPendingMail;
 
 /**
- * @mixin \Illuminate\Mail\Mailer
+ * @mixin Mailer
  */
 class MailerMixin
 {

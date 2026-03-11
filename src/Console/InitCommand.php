@@ -7,8 +7,10 @@ namespace Lettr\Laravel\Console;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Lettr\Dto\Template\ListTemplatesFilter;
 use Lettr\Laravel\Concerns\DisplayHelper;
 use Lettr\Laravel\LettrManager;
 
@@ -404,7 +406,7 @@ PHP;
         // Try to get result from async promise first
         if ($this->domainsPromise !== null) {
             try {
-                /** @var \Illuminate\Http\Client\Response $response */
+                /** @var Response $response */
                 $response = $this->domainsPromise->wait();
 
                 if ($response->successful()) {
@@ -455,7 +457,7 @@ PHP;
         // Try to get result from async promise first
         if ($this->templatesPromise !== null) {
             try {
-                /** @var \Illuminate\Http\Client\Response $response */
+                /** @var Response $response */
                 $response = $this->templatesPromise->wait();
 
                 if ($response->successful()) {
@@ -481,7 +483,7 @@ PHP;
             /** @var LettrManager $lettr */
             $lettr = app('lettr');
 
-            $response = $lettr->templates()->list(new \Lettr\Dto\Template\ListTemplatesFilter(perPage: 1));
+            $response = $lettr->templates()->list(new ListTemplatesFilter(perPage: 1));
             $templates = $response->templates->all();
 
             if (! empty($templates)) {

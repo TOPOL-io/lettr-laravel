@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lettr\Laravel\Facades;
 
 use Illuminate\Support\Facades\Facade;
+use Lettr\Laravel\LettrManager;
 
 /**
  * @method static \Lettr\Services\EmailService emails()
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Lettr\Laravel\Services\TemplateServiceWrapper templates()
  *
  * @see \Lettr\Lettr
- * @see \Lettr\Laravel\LettrManager
+ * @see LettrManager
  */
 class Lettr extends Facade
 {
