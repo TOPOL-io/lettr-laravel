@@ -192,14 +192,6 @@ class WelcomeEmail extends LettrMailable
         public string $activationUrl,
     ) {}
 
-    public function envelope(): Envelope
-    {
-        return new Envelope(
-            from: 'hello@example.com',
-            subject: 'Welcome to Our App!',
-        );
-    }
-
     public function build(): static
     {
         return $this
@@ -272,18 +264,25 @@ class OrderConfirmation extends LettrMailable
 
 For quick template sending without creating a Mailable class, use the `Mail::lettr()` method:
 
+> **Note:** When no subject is provided, the template's own subject is used. Pass a `subject` only if you want to override it.
+
 ```php
 use Illuminate\Support\Facades\Mail;
 
-// Simple usage
+// Simple usage — subject comes from the template
 Mail::lettr()
     ->to('user@example.com')
-    ->sendTemplate('welcome-email', ['name' => 'John']);
+    ->sendTemplate('welcome-email', substitutionData: ['name' => 'John']);
+
+// Override the template's subject
+Mail::lettr()
+    ->to('user@example.com')
+    ->sendTemplate('welcome-email', subject: 'Hey John!', substitutionData: ['name' => 'John']);
 
 // With specific template version
 Mail::lettr()
     ->to('user@example.com')
-    ->sendTemplate('order-confirmation', [
+    ->sendTemplate('order-confirmation', substitutionData: [
         'order_id' => 123,
         'items' => $items,
     ], version: 2);
@@ -293,12 +292,12 @@ Mail::lettr()
     ->to('user@example.com')
     ->cc('manager@example.com')
     ->bcc('records@example.com')
-    ->sendTemplate('invoice', $invoiceData);
+    ->sendTemplate('invoice', substitutionData: $invoiceData);
 
 // With a generated DTO (implements Arrayable)
 Mail::lettr()
     ->to('user@example.com')
-    ->sendTemplate('welcome-email', new WelcomeEmailData(
+    ->sendTemplate('welcome-email', substitutionData: new WelcomeEmailData(
         userName: 'John',
         activationUrl: 'https://example.com/activate/abc123',
     ));
@@ -319,7 +318,7 @@ public function test_welcome_email_is_sent(): void
     // Trigger the code that sends the email
     Mail::lettr()
         ->to('user@example.com')
-        ->sendTemplate('welcome-email', ['name' => 'John']);
+        ->sendTemplate('welcome-email', substitutionData: ['name' => 'John']);
 
     // Assert the email was sent
     Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
@@ -335,7 +334,7 @@ public function test_order_confirmation_has_correct_recipients(): void
         ->to('customer@example.com')
         ->cc('sales@example.com')
         ->bcc('records@example.com')
-        ->sendTemplate('order-confirmation', ['order_id' => 123]);
+        ->sendTemplate('order-confirmation', substitutionData: ['order_id' => 123]);
 
     Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
         return $mailable->hasTo('customer@example.com')
@@ -392,11 +391,11 @@ $response = Lettr::emails()->sendText(
     text: 'Plain text content',
 );
 
-// Template email
+// Template email (subject is optional — the template defines its own subject)
 $response = Lettr::emails()->sendTemplate(
     from: 'sender@example.com',
     to: 'recipient@example.com',
-    subject: 'Welcome!',
+    subject: null,
     templateSlug: 'welcome-email',
     templateVersion: 2,
     substitutionData: ['name' => 'John'],
@@ -427,12 +426,13 @@ $response = Lettr::emails()->send($email);
 
 ### Templates with Substitution Data
 
+When using a template, the subject is optional — the template defines its own subject. You can omit `->subject()` entirely, or provide one to override the template's subject.
+
 ```php
 $response = Lettr::emails()->send(
     Lettr::emails()->create()
         ->from('sender@example.com')
         ->to(['recipient@example.com'])
-        ->subject('Your Order #{{order_id}}')
         ->useTemplate('order-confirmation', version: 1)
         ->substitutionData([
             'order_id' => '12345',
