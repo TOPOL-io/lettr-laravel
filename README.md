@@ -11,7 +11,7 @@ Official Laravel integration for the [Lettr](https://lettr.com) email API.
 ## Requirements
 
 - PHP 8.4+
-- Laravel 10.x, 11.x, or 12.x
+- Laravel 10.x, 11.x, 12.x, or 13.x
 
 ## Installation
 
