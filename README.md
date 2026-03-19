@@ -287,6 +287,12 @@ Mail::lettr()
         'items' => $items,
     ], version: 2);
 
+// With a custom from address
+Mail::lettr()
+    ->from('hello@marketing.example.com', 'Marketing Team')
+    ->to('user@example.com')
+    ->sendTemplate('promo-campaign', substitutionData: $promoData);
+
 // With CC and BCC
 Mail::lettr()
     ->to('user@example.com')
@@ -302,6 +308,41 @@ Mail::lettr()
         activationUrl: 'https://example.com/activate/abc123',
     ));
 ```
+
+### Custom From Address
+
+By default, emails are sent from the address configured in `MAIL_FROM_ADDRESS`. To send from a different address (e.g. a marketing domain), use `from()`:
+
+```php
+// Inline template sending
+Mail::lettr()
+    ->from('hello@marketing.example.com', 'Marketing Team')
+    ->to('user@example.com')
+    ->sendTemplate('promo-campaign', substitutionData: $promoData);
+
+// Regular Mailable sending
+Mail::lettr()
+    ->from('noreply@transactional.example.com')
+    ->to('user@example.com')
+    ->send(new OrderConfirmation($order));
+```
+
+For Mailable classes, you can also set the from address in the `envelope()` method:
+
+```php
+class MarketingEmail extends LettrMailable
+{
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            from: new Address('hello@marketing.example.com', 'Marketing Team'),
+            subject: 'Special Offer',
+        );
+    }
+}
+```
+
+> **Note:** The from address must belong to a verified sending domain in your [Lettr account](https://app.lettr.com/domains/sending).
 
 ### Testing with Mail::fake()
 

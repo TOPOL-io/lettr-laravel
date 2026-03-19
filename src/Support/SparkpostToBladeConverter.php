@@ -154,7 +154,7 @@ class SparkpostToBladeConverter
         $pos = $searchStart;
         $length = strlen($content);
 
-        while ($pos < $length && $depth > 0) {
+        while ($pos < $length) {
             // Look for the next {{#each or {{/each}}
             $nextEach = strpos($content, '{{#each', $pos);
             $nextEndEach = strpos($content, '{{/each}}', $pos);

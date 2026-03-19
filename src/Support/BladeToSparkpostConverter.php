@@ -119,7 +119,7 @@ class BladeToSparkpostConverter
         $pos = $searchStart;
         $length = strlen($content);
 
-        while ($pos < $length && $depth > 0) {
+        while ($pos < $length) {
             // Look for the next @foreach or @endforeach
             $nextForeach = strpos($content, '@foreach', $pos);
             $nextEndforeach = strpos($content, '@endforeach', $pos);
