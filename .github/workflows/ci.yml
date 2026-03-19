@@ -14,7 +14,7 @@ jobs:
       fail-fast: true
       matrix:
         php: ['8.4']
-        laravel: ['10.*', '11.*', '12.*']
+        laravel: ['10.*', '11.*', '12.*', '13.*']
         include:
           - laravel: 10.*
             testbench: ^8.17
@@ -22,6 +22,8 @@ jobs:
             testbench: ^9.0
           - laravel: 12.*
             testbench: ^10.8
+          - laravel: 13.*
+            testbench: ^11.0
 
     name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
 
