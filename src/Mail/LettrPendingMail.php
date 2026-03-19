@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Lettr\Laravel\Mail;
 
+use Illuminate\Contracts\Mail\Mailable as MailableContract;
 use Illuminate\Contracts\Mail\Mailer as MailerContract;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Mail\Mailable;
 use Illuminate\Mail\PendingMail;
 use Illuminate\Mail\SentMessage;
 
@@ -14,9 +16,34 @@ use Illuminate\Mail\SentMessage;
  */
 class LettrPendingMail extends PendingMail
 {
+    /** @var array{address: string, name: ?string}|null */
+    protected ?array $fromAddress = null;
+
     public function __construct(MailerContract $mailer)
     {
         parent::__construct($mailer);
+    }
+
+    /**
+     * Set the sender for the email.
+     */
+    public function from(string $address, ?string $name = null): static
+    {
+        $this->fromAddress = compact('address', 'name');
+
+        return $this;
+    }
+
+    /**
+     * Send a new mailable message instance, applying from address if set.
+     */
+    public function send(MailableContract $mailable): ?SentMessage
+    {
+        if ($this->fromAddress !== null && $mailable instanceof Mailable) {
+            $mailable->from($this->fromAddress['address'], $this->fromAddress['name']);
+        }
+
+        return parent::send($mailable);
     }
 
     /**
