@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-03-19
+
+### Added
+
+- **Custom From Address** - `from()` method on `LettrPendingMail` for sending emails from different addresses
+  - `Mail::lettr()->from('hello@marketing.example.com', 'Marketing Team')->to()->sendTemplate()` fluent API
+  - Works with both inline `sendTemplate()` and regular `send()` flows
+
+### Fixed
+
+- PHPStan: removed always-true `$depth > 0` comparisons in `BladeToSparkpostConverter` and `SparkpostToBladeConverter`
+
 ## [0.2.0] - 2025-01-23
 
 ### Added
