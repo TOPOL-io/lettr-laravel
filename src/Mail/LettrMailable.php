@@ -43,6 +43,13 @@ abstract class LettrMailable extends Mailable
     protected array $substitutionData = [];
 
     /**
+     * Custom headers to send with the email.
+     *
+     * @var array<string, string>
+     */
+    protected array $customHeaders = [];
+
+    /**
      * Set the template slug.
      */
     public function template(string $slug, ?int $version = null, ?int $projectId = null): static
@@ -82,6 +89,18 @@ abstract class LettrMailable extends Mailable
     public function substitutionData(array $data): static
     {
         $this->substitutionData = array_merge($this->substitutionData, $data);
+
+        return $this;
+    }
+
+    /**
+     * Set custom headers for the email.
+     *
+     * @param  array<string, string>  $headers
+     */
+    public function customHeaders(array $headers): static
+    {
+        $this->customHeaders = array_merge($this->customHeaders, $headers);
 
         return $this;
     }
@@ -193,6 +212,11 @@ abstract class LettrMailable extends Mailable
                     'X-Lettr-Substitution-Data',
                     base64_encode(json_encode($this->substitutionData, JSON_THROW_ON_ERROR))
                 );
+            }
+
+            // Add custom headers
+            foreach ($this->customHeaders as $name => $value) {
+                $message->getHeaders()->addTextHeader($name, $value);
             }
 
             // Add tag header:

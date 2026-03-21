@@ -93,6 +93,45 @@ it('converts Arrayable to array before passing to InlineLettrMailable', function
     });
 });
 
+it('can pass custom headers with sendTemplate', function () {
+    Mail::fake();
+
+    Mail::lettr()
+        ->to('test@example.com')
+        ->sendTemplate('welcome-email', customHeaders: [
+            'X-Campaign-Id' => 'welcome-2024',
+            'X-Entity-Ref' => 'order-123',
+        ]);
+
+    Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
+        $reflection = new ReflectionClass($mailable);
+        $property = $reflection->getProperty('customHeaders');
+        $property->setAccessible(true);
+        $headers = $property->getValue($mailable);
+
+        return $headers === [
+            'X-Campaign-Id' => 'welcome-2024',
+            'X-Entity-Ref' => 'order-123',
+        ];
+    });
+});
+
+it('sends empty custom headers by default', function () {
+    Mail::fake();
+
+    Mail::lettr()
+        ->to('test@example.com')
+        ->sendTemplate('welcome-email');
+
+    Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
+        $reflection = new ReflectionClass($mailable);
+        $property = $reflection->getProperty('customHeaders');
+        $property->setAccessible(true);
+
+        return $property->getValue($mailable) === [];
+    });
+});
+
 it('still accepts plain arrays in sendTemplate', function () {
     Mail::fake();
 

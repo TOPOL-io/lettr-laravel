@@ -52,6 +52,7 @@ class LettrPendingMail extends PendingMail
      * @param  array<string, mixed>|Arrayable<string, mixed>  $substitutionData
      * @param  string|null  $tag  Override the default tag (template slug). If null, server uses template slug.
      * @param  string|null  $subject  Override the template's default subject line.
+     * @param  array<string, string>  $customHeaders  Custom headers to send with the email.
      */
     public function sendTemplate(
         string $templateSlug,
@@ -59,6 +60,7 @@ class LettrPendingMail extends PendingMail
         array|Arrayable $substitutionData = [],
         ?int $version = null,
         ?string $tag = null,
+        array $customHeaders = [],
     ): ?SentMessage {
         if ($substitutionData instanceof Arrayable) {
             $substitutionData = $substitutionData->toArray();
@@ -70,6 +72,7 @@ class LettrPendingMail extends PendingMail
             $substitutionData,
             $version,
             $tag,
+            $customHeaders,
         );
 
         return $this->send($mailable);
