@@ -89,6 +89,9 @@ class LettrTransportFactory extends AbstractTransport
                 $builder->replyTo($replyTo[0]->getAddress());
             }
 
+            // Add custom headers
+            $this->configureCustomHeaders($builder, $email);
+
             // Add attachments
             foreach ($email->getAttachments() as $attachment) {
                 if (! $attachment instanceof DataPart) {
@@ -141,6 +144,22 @@ class LettrTransportFactory extends AbstractTransport
                     $builder->substitutionData($substitutionData);
                 }
             }
+        }
+    }
+
+    /**
+     * Forward custom headers from the Symfony email to the Lettr API.
+     */
+    protected function configureCustomHeaders(EmailBuilder $builder, Email $email): void
+    {
+        foreach ($email->getHeaders()->all() as $header) {
+            $name = strtolower($header->getName());
+
+            if (str_starts_with($name, 'x-lettr-')) {
+                continue;
+            }
+
+            $builder->addHeader($header->getName(), $header->getBodyAsString());
         }
     }
 
