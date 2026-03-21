@@ -152,8 +152,34 @@ class LettrTransportFactory extends AbstractTransport
      */
     protected function configureCustomHeaders(EmailBuilder $builder, Email $email): void
     {
+        $standardHeaders = [
+            'from',
+            'to',
+            'cc',
+            'bcc',
+            'reply-to',
+            'subject',
+            'content-type',
+            'content-transfer-encoding',
+            'mime-version',
+            'date',
+            'message-id',
+            'dkim-signature',
+            'domainkey-signature',
+            'return-path',
+            'received',
+            'sender',
+            'x-msys-api',
+            'list-unsubscribe',
+            'list-unsubscribe-post',
+        ];
+
         foreach ($email->getHeaders()->all() as $header) {
             $name = strtolower($header->getName());
+
+            if (in_array($name, $standardHeaders, true)) {
+                continue;
+            }
 
             if (str_starts_with($name, 'x-lettr-')) {
                 continue;

@@ -13,6 +13,7 @@ final class InlineLettrMailable extends LettrMailable
 {
     /**
      * @param  array<string, mixed>  $substitutionData
+     * @param  array<string, string>  $customHeaders
      */
     public function __construct(
         string $templateSlug,
@@ -20,6 +21,7 @@ final class InlineLettrMailable extends LettrMailable
         array $substitutionData = [],
         ?int $version = null,
         ?string $tag = null,
+        array $customHeaders = [],
     ) {
         $this->template($templateSlug, $version);
         $this->substitutionData($substitutionData);
@@ -30,6 +32,10 @@ final class InlineLettrMailable extends LettrMailable
 
         if ($subject !== null) {
             $this->subject = $subject;
+        }
+
+        if (count($customHeaders) > 0) {
+            $this->customHeaders($customHeaders);
         }
     }
 

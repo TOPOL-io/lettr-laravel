@@ -253,3 +253,70 @@ it('does not forward internal X-Lettr headers as custom headers', function () {
         ->not->toHaveKey('X-Lettr-Template-Slug')
         ->not->toHaveKey('X-Lettr-Tag');
 });
+
+it('does not forward standard email headers as custom headers', function () {
+    $capturedData = null;
+
+    $fakeTransporter = new class($capturedData) implements TransporterContract
+    {
+        public function __construct(public mixed &$captured) {}
+
+        public function post(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id', 'accepted' => 1, 'rejected' => 0];
+        }
+
+        public function get(string $uri): array
+        {
+            return [];
+        }
+
+        public function getWithQuery(string $uri, array $query = []): array
+        {
+            return [];
+        }
+
+        public function delete(string $uri): void {}
+
+        public function lastResponseHeaders(): array
+        {
+            return [];
+        }
+    };
+
+    $lettr = new Lettr($fakeTransporter);
+    $transport = new LettrTransportFactory($lettr);
+
+    $email = (new Email)
+        ->from('sender@example.com')
+        ->to('recipient@example.com')
+        ->subject('Test')
+        ->html('<p>Hello</p>');
+    $email->getHeaders()->addTextHeader('X-Custom-Header', 'custom-value');
+
+    $envelope = new Envelope(
+        new Address('sender@example.com'),
+        [new Address('recipient@example.com')]
+    );
+
+    $sentMessage = new SentMessage($email, $envelope);
+
+    $reflection = new ReflectionMethod($transport, 'doSend');
+    $reflection->setAccessible(true);
+    $reflection->invoke($transport, $sentMessage);
+
+    expect($capturedData['headers'])
+        ->toHaveKey('X-Custom-Header', 'custom-value')
+        ->not->toHaveKey('From')
+        ->not->toHaveKey('from')
+        ->not->toHaveKey('To')
+        ->not->toHaveKey('to')
+        ->not->toHaveKey('Subject')
+        ->not->toHaveKey('subject')
+        ->not->toHaveKey('MIME-Version')
+        ->not->toHaveKey('Date')
+        ->not->toHaveKey('Content-Type')
+        ->not->toHaveKey('Message-ID');
+});

@@ -224,6 +224,7 @@ Mail::to('user@example.com')
 | `template($slug, $version)` | Set template slug with optional version |
 | `templateVersion($version)` | Set template version separately |
 | `substitutionData($data)` | Set substitution variables for the template |
+| `customHeaders($headers)` | Set custom email headers |
 
 ### Example: Order Confirmation
 
@@ -343,6 +344,37 @@ class MarketingEmail extends LettrMailable
 ```
 
 > **Note:** The from address must belong to a verified sending domain in your [Lettr account](https://app.lettr.com/domains/sending).
+
+### Custom Headers
+
+You can pass custom headers with your emails. These are forwarded directly to the Lettr API.
+
+```php
+// Inline template sending
+Mail::lettr()
+    ->to('user@example.com')
+    ->sendTemplate('welcome-email', substitutionData: ['name' => 'John'], customHeaders: [
+        'X-Campaign-Id' => 'welcome-2024',
+        'X-Entity-Ref' => 'order-123',
+    ]);
+```
+
+For Mailable classes, use the `customHeaders()` method:
+
+```php
+class WelcomeEmail extends LettrMailable
+{
+    public function build(): static
+    {
+        return $this
+            ->template('welcome-email')
+            ->customHeaders([
+                'X-Campaign-Id' => 'welcome-2024',
+                'X-Entity-Ref' => 'order-123',
+            ]);
+    }
+}
+```
 
 ### Testing with Mail::fake()
 
