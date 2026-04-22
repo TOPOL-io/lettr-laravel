@@ -54,17 +54,10 @@ it('pushes templates from specified path', function () {
         ->andReturn('<html><body>Welcome!</body></html>');
 
     $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('welcome-email')
-        ->once()
-        ->andReturn(false);
-
-    $this->templateService
         ->shouldReceive('create')
         ->once()
         ->withArgs(function (CreateTemplateData $data) {
             return $data->name === 'Welcome Email'
-                && $data->slug === 'welcome-email'
                 && $data->html === '<html><body>Welcome!</body></html>';
         })
         ->andReturn(createCreatedTemplateForPush(1, 'Welcome Email', 'welcome-email'));
@@ -102,11 +95,6 @@ it('auto-discovers emails folder and confirms with user', function () {
         ->andReturn('<html>Order Confirmation</html>');
 
     $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('order-confirmation')
-        ->andReturn(false);
-
-    $this->templateService
         ->shouldReceive('create')
         ->once()
         ->andReturn(createCreatedTemplateForPush(1, 'Order Confirmation', 'order-confirmation'));
@@ -116,7 +104,7 @@ it('auto-discovers emails folder and confirms with user', function () {
         ->assertSuccessful();
 });
 
-it('resolves slug conflicts by appending numbers', function () {
+it('displays server-assigned slug in the output', function () {
     $path = '/path/to/templates';
     $bladeFile = $path.'/welcome-email.blade.php';
 
@@ -135,36 +123,16 @@ it('resolves slug conflicts by appending numbers', function () {
         ->with($bladeFile)
         ->andReturn('<html>Welcome!</html>');
 
-    // First slug exists
-    $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('welcome-email')
-        ->once()
-        ->andReturn(true);
-
-    // Second slug also exists
-    $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('welcome-email-1')
-        ->once()
-        ->andReturn(true);
-
-    // Third slug is available
-    $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('welcome-email-2')
-        ->once()
-        ->andReturn(false);
-
+    // Server may pick any slug (e.g. after a collision it picks welcome-email-42);
+    // the command must display whatever the server returns.
     $this->templateService
         ->shouldReceive('create')
         ->once()
-        ->withArgs(fn (CreateTemplateData $data) => $data->slug === 'welcome-email-2')
-        ->andReturn(createCreatedTemplateForPush(1, 'Welcome Email', 'welcome-email-2'));
+        ->andReturn(createCreatedTemplateForPush(1, 'Welcome Email', 'welcome-email-42'));
 
     $this->artisan(PushCommand::class, ['--path' => $path])
         ->assertSuccessful()
-        ->expectsOutputToContain('welcome-email-2');
+        ->expectsOutputToContain('welcome-email-42');
 });
 
 it('filters templates by filename when template option is provided', function () {
@@ -192,14 +160,9 @@ it('filters templates by filename when template option is provided', function ()
         ->andReturn('<html>Second</html>');
 
     $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('second-template')
-        ->andReturn(false);
-
-    $this->templateService
         ->shouldReceive('create')
         ->once()
-        ->withArgs(fn (CreateTemplateData $data) => $data->slug === 'second-template')
+        ->withArgs(fn (CreateTemplateData $data) => $data->name === 'Second Template')
         ->andReturn(createCreatedTemplateForPush(2, 'Second Template', 'second-template'));
 
     $this->artisan(PushCommand::class, ['--path' => $path, '--template' => 'second-template'])
@@ -244,7 +207,6 @@ it('does not create templates in dry run mode', function () {
         ->andReturn('<html>Dry Run Content</html>');
 
     // No API calls should be made
-    $this->templateService->shouldNotReceive('slugExists');
     $this->templateService->shouldNotReceive('create');
 
     $this->artisan(PushCommand::class, ['--path' => $path, '--dry-run' => true])
@@ -280,16 +242,11 @@ it('skips templates with empty content', function () {
         ->with($path.'/valid-template.blade.php')
         ->andReturn('<html>Valid</html>');
 
-    $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('valid-template')
-        ->andReturn(false);
-
     // Only valid template should be created
     $this->templateService
         ->shouldReceive('create')
         ->once()
-        ->withArgs(fn (CreateTemplateData $data) => $data->slug === 'valid-template')
+        ->withArgs(fn (CreateTemplateData $data) => $data->name === 'Valid Template')
         ->andReturn(createCreatedTemplateForPush(1, 'Valid Template', 'valid-template'));
 
     $this->artisan(PushCommand::class, ['--path' => $path])
@@ -311,7 +268,7 @@ it('shows error when directory does not exist', function () {
         ->expectsOutputToContain('Directory does not exist');
 });
 
-it('converts filenames to proper names and slugs', function () {
+it('converts filenames to human-readable names', function () {
     $path = '/path/to/templates';
     $bladeFile = $path.'/MyWelcomeEmail.blade.php';
 
@@ -331,17 +288,9 @@ it('converts filenames to proper names and slugs', function () {
         ->andReturn('<html>Welcome!</html>');
 
     $this->templateService
-        ->shouldReceive('slugExists')
-        ->with('my-welcome-email')
-        ->andReturn(false);
-
-    $this->templateService
         ->shouldReceive('create')
         ->once()
-        ->withArgs(function (CreateTemplateData $data) {
-            return $data->name === 'My Welcome Email'
-                && $data->slug === 'my-welcome-email';
-        })
+        ->withArgs(fn (CreateTemplateData $data) => $data->name === 'My Welcome Email')
         ->andReturn(createCreatedTemplateForPush(1, 'My Welcome Email', 'my-welcome-email'));
 
     $this->artisan(PushCommand::class, ['--path' => $path])
@@ -373,11 +322,6 @@ it('pushes multiple templates', function () {
             ->once()
             ->andReturn('<html>Content</html>');
     }
-
-    $this->templateService
-        ->shouldReceive('slugExists')
-        ->times(3)
-        ->andReturn(false);
 
     $this->templateService
         ->shouldReceive('create')

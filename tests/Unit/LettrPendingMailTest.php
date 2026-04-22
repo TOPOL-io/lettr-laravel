@@ -148,3 +148,39 @@ it('still accepts plain arrays in sendTemplate', function () {
         return $data === ['key' => 'value'];
     });
 });
+
+it('stores scheduledAt on the inline mailable when scheduleAt is chained', function () {
+    Mail::fake();
+
+    $when = new DateTimeImmutable('2030-01-01T12:00:00+00:00');
+
+    Mail::lettr()
+        ->to('test@example.com')
+        ->scheduleAt($when)
+        ->sendTemplate('welcome-email');
+
+    Mail::assertSent(InlineLettrMailable::class, function ($mailable) use ($when) {
+        $reflection = new ReflectionClass($mailable);
+        $property = $reflection->getProperty('scheduledAt');
+        $property->setAccessible(true);
+
+        return $property->getValue($mailable) === $when->format(DateTimeInterface::ATOM);
+    });
+});
+
+it('accepts an ISO 8601 string in scheduleAt', function () {
+    Mail::fake();
+
+    Mail::lettr()
+        ->to('test@example.com')
+        ->scheduleAt('2030-06-15T09:30:00+02:00')
+        ->sendTemplate('welcome-email');
+
+    Mail::assertSent(InlineLettrMailable::class, function ($mailable) {
+        $reflection = new ReflectionClass($mailable);
+        $property = $reflection->getProperty('scheduledAt');
+        $property->setAccessible(true);
+
+        return $property->getValue($mailable) === '2030-06-15T09:30:00+02:00';
+    });
+});

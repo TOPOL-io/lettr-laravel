@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-04-22
+
+### Added
+
+- **Scheduled Emails** - Schedule a Lettr transmission from Laravel Mail:
+  - `Mail::lettr()->scheduleAt($datetime)->sendTemplate(...)` for inline templates
+  - `$this->scheduledAt($datetime)` on `LettrMailable` subclasses
+  - Transport detects `X-Lettr-Scheduled-At` and routes to `POST /emails/scheduled`
+- **Template Wrapper Methods** - `TemplateServiceWrapper::update()` and `::getHtml()` passthroughs.
+- **Facade PHPDoc** - Added `projects()` and `health()` accessors to the `Lettr` facade docblock.
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^1.4.0`.** The SDK syncs to API v1.4.0 and adds scheduled emails, email list/events, full webhook CRUD, template update/html, and auth check. All new endpoints are reachable today via `Lettr::emails()` / `Lettr::webhooks()` / `Lettr::templates()` / `Lettr::health()`.
+- **`lettr:push`** no longer computes slugs client-side. The API generates the slug; the command displays whatever the server assigned.
+
+### Removed
+
+- **`TemplateServiceWrapper::slugExists()`** - The underlying create endpoint has always server-generated slugs, so the client-side existence check was a no-op. Removed from the public API of the wrapper.
+
+### Notes for v1.4 consumers
+
+- `Webhook::$eventTypes` can now be `null` when the webhook subscribes to all events (use `$webhook->listensToAllEvents()`).
+- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) is distinct from `Enums\EventType` (used for filtering `/emails/events`).
+- `Domain` / `DomainDetail` / `DomainVerification` response shapes changed upstream (see `lettr/lettr-php` 1.4 notes); the Laravel package does not expose these DTOs directly.
+
 ## [1.3.0] - 2026-03-19
 
 ### Added

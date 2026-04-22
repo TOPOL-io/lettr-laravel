@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lettr\Laravel\Mail;
 
+use DateTimeInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -48,6 +49,11 @@ abstract class LettrMailable extends Mailable
      * @var array<string, string>
      */
     protected array $customHeaders = [];
+
+    /**
+     * ISO 8601 timestamp at which the email should be sent.
+     */
+    protected ?string $scheduledAt = null;
 
     /**
      * Set the template slug.
@@ -101,6 +107,18 @@ abstract class LettrMailable extends Mailable
     public function customHeaders(array $headers): static
     {
         $this->customHeaders = array_merge($this->customHeaders, $headers);
+
+        return $this;
+    }
+
+    /**
+     * Schedule the email for future delivery via the Lettr API.
+     */
+    public function scheduledAt(DateTimeInterface|string $when): static
+    {
+        $this->scheduledAt = $when instanceof DateTimeInterface
+            ? $when->format(DateTimeInterface::ATOM)
+            : $when;
 
         return $this;
     }
@@ -212,6 +230,10 @@ abstract class LettrMailable extends Mailable
                     'X-Lettr-Substitution-Data',
                     base64_encode(json_encode($this->substitutionData, JSON_THROW_ON_ERROR))
                 );
+            }
+
+            if ($this->scheduledAt !== null) {
+                $message->getHeaders()->addTextHeader('X-Lettr-Scheduled-At', $this->scheduledAt);
             }
 
             // Add custom headers

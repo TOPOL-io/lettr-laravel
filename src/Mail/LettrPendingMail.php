@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lettr\Laravel\Mail;
 
+use DateTimeInterface;
 use Illuminate\Contracts\Mail\Mailable as MailableContract;
 use Illuminate\Contracts\Mail\Mailer as MailerContract;
 use Illuminate\Contracts\Support\Arrayable;
@@ -18,6 +19,8 @@ class LettrPendingMail extends PendingMail
 {
     /** @var array{address: string, name: ?string}|null */
     protected ?array $fromAddress = null;
+
+    protected ?string $scheduledAt = null;
 
     public function __construct(MailerContract $mailer)
     {
@@ -35,12 +38,28 @@ class LettrPendingMail extends PendingMail
     }
 
     /**
-     * Send a new mailable message instance, applying from address if set.
+     * Schedule delivery of the email to the given time via the Lettr API.
+     */
+    public function scheduleAt(DateTimeInterface|string $when): static
+    {
+        $this->scheduledAt = $when instanceof DateTimeInterface
+            ? $when->format(DateTimeInterface::ATOM)
+            : $when;
+
+        return $this;
+    }
+
+    /**
+     * Send a new mailable message instance, applying from address and scheduledAt if set.
      */
     public function send(MailableContract $mailable): ?SentMessage
     {
         if ($this->fromAddress !== null && $mailable instanceof Mailable) {
             $mailable->from($this->fromAddress['address'], $this->fromAddress['name']);
+        }
+
+        if ($this->scheduledAt !== null && $mailable instanceof LettrMailable) {
+            $mailable->scheduledAt($this->scheduledAt);
         }
 
         return parent::send($mailable);
@@ -73,6 +92,7 @@ class LettrPendingMail extends PendingMail
             $version,
             $tag,
             $customHeaders,
+            $this->scheduledAt,
         );
 
         return $this->send($mailable);
