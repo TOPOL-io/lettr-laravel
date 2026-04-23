@@ -44,6 +44,11 @@ class PushCommand extends Command
     protected array $createdTemplates = [];
 
     /**
+     * @var array<int, array{filename: string, name: string}>
+     */
+    protected array $pendingTemplates = [];
+
+    /**
      * @var array<int, array{filename: string, reason: string}>
      */
     protected array $skippedTemplates = [];
@@ -197,7 +202,6 @@ class PushCommand extends Command
     {
         $filename = $this->getFilenameWithoutExtension($filePath);
         $name = $this->filenameToName($filename);
-        $baseSlug = $this->filenameToSlug($filename);
 
         // Read file content
         $html = $this->files->get($filePath);
@@ -214,45 +218,31 @@ class PushCommand extends Command
             return;
         }
 
-        // Resolve slug conflicts
-        $slug = $dryRun ? $baseSlug : $this->resolveSlug($baseSlug);
+        if ($dryRun) {
+            $this->pendingTemplates[] = [
+                'filename' => basename($filePath),
+                'name' => $name,
+            ];
 
-        if (! $dryRun) {
-            $this->createTemplate($name, $slug, $html);
+            return;
         }
+
+        $created = $this->createTemplate($name, $html);
 
         $this->createdTemplates[] = [
             'filename' => basename($filePath),
-            'name' => $name,
-            'slug' => $slug,
-            'conflict_resolved' => $slug !== $baseSlug,
+            'name' => $created->name,
+            'slug' => $created->slug,
         ];
-    }
-
-    /**
-     * Resolve slug conflicts by appending incrementing numbers.
-     */
-    protected function resolveSlug(string $baseSlug): string
-    {
-        $slug = $baseSlug;
-        $counter = 1;
-
-        while ($this->withRateLimitRetry(fn () => $this->lettr->templates()->slugExists($slug))) {
-            $slug = "{$baseSlug}-{$counter}";
-            $counter++;
-        }
-
-        return $slug;
     }
 
     /**
      * Create a template via the API.
      */
-    protected function createTemplate(string $name, string $slug, string $html): CreatedTemplate
+    protected function createTemplate(string $name, string $html): CreatedTemplate
     {
         $data = new CreateTemplateData(
             name: $name,
-            slug: $slug,
             html: $html,
         );
 
@@ -279,34 +269,30 @@ class PushCommand extends Command
     }
 
     /**
-     * Convert filename to a slug.
-     * Example: "WelcomeEmail" -> "welcome-email"
-     */
-    protected function filenameToSlug(string $filename): string
-    {
-        return Str::kebab($filename);
-    }
-
-    /**
      * Output the summary of created templates.
      */
     protected function outputSummary(bool $dryRun): void
     {
         $this->newLine();
 
-        $prefix = $dryRun ? 'Would create' : 'Created';
-        $this->components->twoColumnDetail("<fg=gray>{$prefix}:</>");
+        if ($dryRun) {
+            $this->components->twoColumnDetail('<fg=gray>Would create:</>');
 
-        foreach ($this->createdTemplates as $template) {
-            $slugDisplay = $template['slug'];
-            if (! empty($template['conflict_resolved'])) {
-                $slugDisplay .= ' <fg=yellow>(slug conflict resolved)</>';
+            foreach ($this->pendingTemplates as $template) {
+                $this->components->twoColumnDetail(
+                    "  <fg=green>✓</> {$template['name']}",
+                    '<fg=gray>(slug assigned by server)</>'
+                );
             }
+        } else {
+            $this->components->twoColumnDetail('<fg=gray>Created:</>');
 
-            $this->components->twoColumnDetail(
-                "  <fg=green>✓</> {$template['name']}",
-                $slugDisplay
-            );
+            foreach ($this->createdTemplates as $template) {
+                $this->components->twoColumnDetail(
+                    "  <fg=green>✓</> {$template['name']}",
+                    $template['slug']
+                );
+            }
         }
 
         if (! empty($this->skippedTemplates)) {
@@ -323,7 +309,7 @@ class PushCommand extends Command
 
         $this->newLine();
 
-        $count = count($this->createdTemplates);
+        $count = $dryRun ? count($this->pendingTemplates) : count($this->createdTemplates);
         $action = $dryRun ? 'Would create' : 'Created';
         $this->components->info("Done! {$action} {$count} template(s).");
     }

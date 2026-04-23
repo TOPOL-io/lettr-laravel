@@ -32,11 +32,12 @@ function domainEntry(string $domain, bool $canSend = true, string $status = 'app
     return [
         'domain' => $domain,
         'status' => $status,
+        'status_label' => ucfirst($status),
         'can_send' => $canSend,
+        'cname_status' => 'valid',
         'dkim_status' => 'valid',
-        'return_path_status' => 'valid',
         'created_at' => '2025-01-01T00:00:00+00:00',
-        'verified_at' => $canSend ? '2025-01-01T00:00:00+00:00' : null,
+        'updated_at' => '2025-01-01T00:00:00+00:00',
     ];
 }
 

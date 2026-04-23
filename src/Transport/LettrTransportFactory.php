@@ -107,7 +107,13 @@ class LettrTransportFactory extends AbstractTransport
                 );
             }
 
-            $result = $this->lettr->emails()->send($builder);
+            $scheduledAt = $this->getHeader($email, 'X-Lettr-Scheduled-At');
+            if ($scheduledAt !== null) {
+                $builder->scheduledAt($scheduledAt);
+                $result = $this->lettr->emails()->schedule($builder);
+            } else {
+                $result = $this->lettr->emails()->send($builder);
+            }
         } catch (Exception $exception) {
             throw new TransportException(
                 sprintf('Request to the Lettr API failed. Reason: %s', $exception->getMessage()),

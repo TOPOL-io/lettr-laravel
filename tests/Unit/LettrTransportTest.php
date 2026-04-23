@@ -44,6 +44,13 @@ it('does not pass subject to builder when subject is null and template slug is s
             return [];
         }
 
+        public function put(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
 
         public function lastResponseHeaders(): array
@@ -99,6 +106,13 @@ it('passes subject to builder when subject is provided with template', function 
         public function getWithQuery(string $uri, array $query = []): array
         {
             return [];
+        }
+
+        public function put(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id'];
         }
 
         public function delete(string $uri): void {}
@@ -158,6 +172,13 @@ it('forwards custom headers to the Lettr API', function () {
             return [];
         }
 
+        public function put(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
 
         public function lastResponseHeaders(): array
@@ -215,6 +236,13 @@ it('does not forward internal X-Lettr headers as custom headers', function () {
         public function getWithQuery(string $uri, array $query = []): array
         {
             return [];
+        }
+
+        public function put(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id'];
         }
 
         public function delete(string $uri): void {}
@@ -278,6 +306,13 @@ it('does not forward standard email headers as custom headers', function () {
             return [];
         }
 
+        public function put(string $uri, array $data): array
+        {
+            $this->captured = $data;
+
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
 
         public function lastResponseHeaders(): array
@@ -319,4 +354,129 @@ it('does not forward standard email headers as custom headers', function () {
         ->not->toHaveKey('Date')
         ->not->toHaveKey('Content-Type')
         ->not->toHaveKey('Message-ID');
+});
+
+it('routes scheduled emails to the /emails/scheduled endpoint when X-Lettr-Scheduled-At is set', function () {
+    $capturedUri = null;
+    $capturedData = null;
+
+    $fakeTransporter = new class($capturedUri, $capturedData) implements TransporterContract
+    {
+        public function __construct(public mixed &$uri, public mixed &$captured) {}
+
+        public function post(string $uri, array $data): array
+        {
+            $this->uri = $uri;
+            $this->captured = $data;
+
+            return ['request_id' => 'scheduled-id', 'accepted' => 1, 'rejected' => 0];
+        }
+
+        public function get(string $uri): array
+        {
+            return [];
+        }
+
+        public function getWithQuery(string $uri, array $query = []): array
+        {
+            return [];
+        }
+
+        public function put(string $uri, array $data): array
+        {
+            return [];
+        }
+
+        public function delete(string $uri): void {}
+
+        public function lastResponseHeaders(): array
+        {
+            return [];
+        }
+    };
+
+    $lettr = new Lettr($fakeTransporter);
+    $transport = new LettrTransportFactory($lettr);
+
+    $email = (new Email)
+        ->from('sender@example.com')
+        ->to('recipient@example.com')
+        ->subject('Scheduled')
+        ->html('<p>Hello</p>');
+    $email->getHeaders()->addTextHeader('X-Lettr-Scheduled-At', '2030-01-01T12:00:00+00:00');
+
+    $envelope = new Envelope(
+        new Address('sender@example.com'),
+        [new Address('recipient@example.com')]
+    );
+
+    $sentMessage = new SentMessage($email, $envelope);
+
+    $reflection = new ReflectionMethod($transport, 'doSend');
+    $reflection->setAccessible(true);
+    $reflection->invoke($transport, $sentMessage);
+
+    expect($capturedUri)->toBe('emails/scheduled')
+        ->and($capturedData['scheduled_at'])->toBe('2030-01-01T12:00:00+00:00')
+        ->and($capturedData['headers'] ?? [])->not->toHaveKey('X-Lettr-Scheduled-At');
+});
+
+it('uses the /emails endpoint when X-Lettr-Scheduled-At is absent', function () {
+    $capturedUri = null;
+
+    $fakeTransporter = new class($capturedUri) implements TransporterContract
+    {
+        public function __construct(public mixed &$uri) {}
+
+        public function post(string $uri, array $data): array
+        {
+            $this->uri = $uri;
+
+            return ['request_id' => 'immediate-id', 'accepted' => 1, 'rejected' => 0];
+        }
+
+        public function get(string $uri): array
+        {
+            return [];
+        }
+
+        public function getWithQuery(string $uri, array $query = []): array
+        {
+            return [];
+        }
+
+        public function put(string $uri, array $data): array
+        {
+            return [];
+        }
+
+        public function delete(string $uri): void {}
+
+        public function lastResponseHeaders(): array
+        {
+            return [];
+        }
+    };
+
+    $lettr = new Lettr($fakeTransporter);
+    $transport = new LettrTransportFactory($lettr);
+
+    $email = (new Email)
+        ->from('sender@example.com')
+        ->to('recipient@example.com')
+        ->subject('Immediate')
+        ->html('<p>Hello</p>');
+
+    $envelope = new Envelope(
+        new Address('sender@example.com'),
+        [new Address('recipient@example.com')]
+    );
+
+    $sentMessage = new SentMessage($email, $envelope);
+
+    $reflection = new ReflectionMethod($transport, 'doSend');
+    $reflection->setAccessible(true);
+    $reflection->invoke($transport, $sentMessage);
+
+    expect($capturedUri)->toBe('emails');
 });

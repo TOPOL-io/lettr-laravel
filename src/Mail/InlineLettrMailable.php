@@ -22,6 +22,7 @@ final class InlineLettrMailable extends LettrMailable
         ?int $version = null,
         ?string $tag = null,
         array $customHeaders = [],
+        ?string $scheduledAt = null,
     ) {
         $this->template($templateSlug, $version);
         $this->substitutionData($substitutionData);
@@ -36,6 +37,10 @@ final class InlineLettrMailable extends LettrMailable
 
         if (count($customHeaders) > 0) {
             $this->customHeaders($customHeaders);
+        }
+
+        if ($scheduledAt !== null) {
+            $this->scheduledAt($scheduledAt);
         }
     }
 

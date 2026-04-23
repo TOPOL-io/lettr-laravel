@@ -225,6 +225,7 @@ Mail::to('user@example.com')
 | `templateVersion($version)` | Set template version separately |
 | `substitutionData($data)` | Set substitution variables for the template |
 | `customHeaders($headers)` | Set custom email headers |
+| `scheduledAt($when)` | Schedule delivery for a future `DateTimeInterface` (or ISO-8601 string) |
 
 ### Example: Order Confirmation
 
@@ -374,6 +375,48 @@ class WelcomeEmail extends LettrMailable
             ]);
     }
 }
+```
+
+### Scheduled Emails
+
+Schedule a Lettr transmission for future delivery. The transport routes to the `POST /emails/scheduled` endpoint when a scheduled-at timestamp is present.
+
+```php
+use Illuminate\Support\Facades\Mail;
+
+// Inline template
+Mail::lettr()
+    ->to('user@example.com')
+    ->scheduleAt(now()->addHours(6))
+    ->sendTemplate('welcome-email', substitutionData: ['name' => 'John']);
+
+// Mailable class
+Mail::lettr()
+    ->scheduleAt(new DateTimeImmutable('2030-01-01T12:00:00+00:00'))
+    ->send(new OrderConfirmation($order));
+
+// Or set it inside a LettrMailable's build()
+class DripDay3 extends LettrMailable
+{
+    public function build(): static
+    {
+        return $this
+            ->template('drip-day-3')
+            ->scheduledAt(now()->addDays(3));
+    }
+}
+```
+
+You can also manage scheduled transmissions directly through the SDK:
+
+```php
+$response = Lettr::emails()->schedule($emailBuilder);
+
+// Look up a scheduled transmission
+$detail = Lettr::emails()->getScheduled($response->requestId);
+
+// Cancel before it sends
+Lettr::emails()->cancelScheduled($response->requestId);
 ```
 
 ### Testing with Mail::fake()
@@ -681,8 +724,13 @@ foreach ($webhooks as $webhook) {
     echo $webhook->enabled;
     echo $webhook->authType->value;  // 'none', 'basic', 'oauth2'
 
-    foreach ($webhook->eventTypes as $eventType) {
-        echo $eventType->value;
+    // $webhook->eventTypes is null when the webhook subscribes to all events.
+    if ($webhook->listensToAllEvents()) {
+        echo "Subscribed to every event type";
+    } else {
+        foreach ($webhook->eventTypes as $eventType) {
+            echo $eventType->value;  // e.g. 'message.delivery', 'engagement.click'
+        }
     }
 
     if ($webhook->isFailing()) {
@@ -694,7 +742,7 @@ foreach ($webhooks as $webhook) {
 ### Get Webhook Details
 
 ```php
-use Lettr\Enums\EventType;
+use Lettr\Enums\WebhookEventType;
 
 $webhook = Lettr::webhooks()->get('webhook-id');
 
@@ -702,14 +750,40 @@ echo $webhook->name;
 echo $webhook->url;
 echo $webhook->lastTriggeredAt;
 
-if ($webhook->listensTo(EventType::Bounce)) {
+if ($webhook->listensTo(WebhookEventType::Bounce)) {
     echo "Webhook receives bounce notifications";
 }
 ```
 
+### Create, Update, Delete Webhooks
+
+```php
+use Lettr\Dto\Webhook\CreateWebhookData;
+use Lettr\Dto\Webhook\UpdateWebhookData;
+use Lettr\Enums\WebhookEventType;
+
+// Create
+$created = Lettr::webhooks()->create(new CreateWebhookData(
+    name: 'Engagement tracker',
+    url: 'https://example.com/hooks/lettr',
+    eventTypes: [WebhookEventType::Delivery, WebhookEventType::Click],
+));
+
+// Update
+Lettr::webhooks()->update($created->id, new UpdateWebhookData(
+    enabled: false,
+));
+
+// Delete
+Lettr::webhooks()->delete($created->id);
+```
+
 ## Event Types
 
-The SDK provides an `EventType` enum with helper methods:
+The SDK exposes two related enums:
+
+- **`Lettr\Enums\EventType`** — used when filtering or inspecting events returned from `/emails/events` (e.g. `$event->type === EventType::Delivery`). Values are unprefixed: `delivery`, `click`, `bounce`, ...
+- **`Lettr\Enums\WebhookEventType`** — used when creating or reading webhook subscriptions. Values are namespaced: `message.delivery`, `engagement.click`, `unsubscribe.list_unsubscribe`, `relay.relay_injection`, ...
 
 ```php
 use Lettr\Enums\EventType;
@@ -719,11 +793,11 @@ $type = EventType::Delivery;
 $type->label();        // "Delivery"
 $type->isSuccess();    // true (injection, delivery)
 $type->isFailure();    // false (bounce, policy_rejection, etc.)
-$type->isEngagement(); // false (open, initial_open, click)
+$type->isEngagement(); // false (open, initial_open, click, amp_open, amp_initial_open, amp_click)
 $type->isUnsubscribe(); // false (list_unsubscribe, link_unsubscribe)
 ```
 
-Available event types: `injection`, `delivery`, `bounce`, `delay`, `policy_rejection`, `out_of_band`, `open`, `initial_open`, `click`, `generation_failure`, `generation_rejection`, `spam_complaint`, `list_unsubscribe`, `link_unsubscribe`
+Available `EventType` values: `injection`, `delivery`, `bounce`, `delay`, `policy_rejection`, `out_of_band`, `open`, `initial_open`, `click`, `amp_open`, `amp_initial_open`, `amp_click`, `generation_failure`, `generation_rejection`, `spam_complaint`, `list_unsubscribe`, `link_unsubscribe`.
 
 ## Error Handling
 

@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-04-23
+
+Major version bump with breaking changes on two axes:
+
+1. **Direct breaks in `lettr-laravel`'s public API** — the slug-handling surface on `TemplateServiceWrapper` and `PushCommand` has been deleted (see **Removed** below). Code that called `Lettr::templates()->slugExists()` or subclassed `PushCommand` and used its slug helpers will need updates.
+2. **Transitive breaks from `lettr/lettr-php ^2.0.0`** — the SDK's DTOs, enums, and `TransporterContract` changed shape (see **Transitive SDK v2.0 changes** below).
+
+If you only use `Mail::lettr()` / `LettrMailable` subclasses / the Laravel mail transport, and never touch `TemplateServiceWrapper::slugExists()` or subclass `PushCommand`, the upgrade is `composer update` and you're done. Otherwise audit the two sections below.
+
+### Added
+
+- **Scheduled Emails** - Schedule a Lettr transmission from Laravel Mail:
+  - `Mail::lettr()->scheduleAt($datetime)->sendTemplate(...)` for inline templates
+  - `Mail::lettr()->scheduleAt($datetime)->send($mailable)` for `LettrMailable` subclasses
+  - `$this->scheduledAt($datetime)` on `LettrMailable` subclasses
+  - Transport detects `X-Lettr-Scheduled-At` and routes to `POST /emails/scheduled`
+- **Template Wrapper Methods** - `TemplateServiceWrapper::update()`, `::getHtml()`, and `::delete()` passthroughs for the new SDK endpoints.
+- **Facade PHPDoc** - Added `projects()` and `health()` accessors to the `Lettr` facade docblock (already worked at runtime via `__get`).
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^2.0.0`.** The SDK syncs to API v1.4 (scheduled emails, email list/events, full webhook CRUD, template update/html, auth check) and was re-tagged as v2.0.0 to correctly reflect its breaking DTO/contract changes under SemVer. All new endpoints are reachable via `Lettr::emails()` / `Lettr::webhooks()` / `Lettr::templates()` / `Lettr::health()`.
+- **`lettr:push`** now shows the server-assigned slug after creation. In `--dry-run` mode the summary no longer shows a client-guessed slug (the server assigns it at create time) — it prints `(slug assigned by server)` next to each template name. The `(slug conflict resolved)` yellow marker is no longer emitted — the server handles collisions.
+
+### Removed
+
+The underlying API has always generated slugs server-side, so client-side slug handling was dead code. Cashing in the removals now that this is a major bump:
+
+- **`TemplateServiceWrapper::slugExists()`** — gone. Read the server-assigned slug from the `CreatedTemplate` response instead.
+- **`PushCommand::resolveSlug()`** — gone. No replacement needed.
+- **`PushCommand::filenameToSlug()`** — gone. Dry-run previews no longer show a client-derived slug.
+- **The `$slug` parameter on `PushCommand::createTemplate()`** — signature changed from `createTemplate(string $name, string $slug, string $html)` to `createTemplate(string $name, string $html)`. Subclasses that overrode it must update their signature.
+- **`PushCommand`'s `$createdTemplates` entries no longer carry a `conflict_resolved` key.**
+
+### Transitive SDK v2.0 changes (upstream `lettr/lettr-php` breaking changes)
+
+If you drive SDK services directly through the facade, audit these call sites:
+
+- `Dto\Template\CreateTemplateData` no longer accepts a `slug` parameter. Drop the `slug:` arg; read the server-assigned slug from the `CreatedTemplate` response.
+- `Dto\Webhook\Webhook::$eventTypes` is now `?WebhookEventTypeCollection` — `null` means the webhook subscribes to all events. Guard iteration with `$webhook->listensToAllEvents()`.
+- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) replaces `Enums\EventType` in webhook subscription contexts. `Enums\EventType` (unprefixed: `delivery`, `click`, ...) remains the filter for `/emails/events`.
+- `Dto\Domain\Domain` fields: removed `returnPathStatus`, `verifiedAt`; added `cnameStatus`, `statusLabel`, `updatedAt`.
+- `Dto\Domain\DomainDetail` fields: removed `verifiedAt`; added `statusLabel`, `spfStatus`, `isPrimaryDomain`, `dnsProvider`.
+- `Dto\Domain\DomainVerification::$ownershipVerified` retyped `?bool` → `?string`.
+- `Contracts\TransporterContract` gained a required `put(string $uri, array $data): array` method. Only affects custom transporter implementations.
+
 ## [1.3.0] - 2026-03-19
 
 ### Added

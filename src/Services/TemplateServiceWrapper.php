@@ -8,8 +8,10 @@ use Lettr\Dto\Template\CreatedTemplate;
 use Lettr\Dto\Template\CreateTemplateData;
 use Lettr\Dto\Template\ListTemplatesFilter;
 use Lettr\Dto\Template\TemplateDetail;
-use Lettr\Exceptions\ApiException;
+use Lettr\Dto\Template\UpdatedTemplate;
+use Lettr\Dto\Template\UpdateTemplateData;
 use Lettr\Responses\GetMergeTagsResponse;
+use Lettr\Responses\GetTemplateHtmlResponse;
 use Lettr\Responses\ListTemplatesResponse;
 use Lettr\Services\TemplateService;
 
@@ -55,20 +57,26 @@ class TemplateServiceWrapper
     }
 
     /**
-     * Check if a template with the given slug exists.
+     * Update an existing template by slug.
      */
-    public function slugExists(string $slug, ?int $projectId = null): bool
+    public function update(string $slug, UpdateTemplateData $data): UpdatedTemplate
     {
-        try {
-            $this->templateService->get($slug, $projectId);
+        return $this->templateService->update($slug, $data);
+    }
 
-            return true;
-        } catch (ApiException $e) {
-            if ($e->getCode() === 404) {
-                return false;
-            }
+    /**
+     * Fetch the rendered HTML of a template.
+     */
+    public function getHtml(int $projectId, string $slug): GetTemplateHtmlResponse
+    {
+        return $this->templateService->getHtml($projectId, $slug);
+    }
 
-            throw $e;
-        }
+    /**
+     * Delete a template by slug.
+     */
+    public function delete(string $slug, ?int $projectId = null): void
+    {
+        $this->templateService->delete($slug, $projectId);
     }
 }
