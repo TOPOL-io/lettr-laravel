@@ -4,31 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.4.0] - 2026-04-22
+## [1.5.0] - 2026-04-23
+
+No breaking changes. Adopts `lettr/lettr-php` v1.4 features additively and keeps existing public API intact.
 
 ### Added
 
 - **Scheduled Emails** - Schedule a Lettr transmission from Laravel Mail:
   - `Mail::lettr()->scheduleAt($datetime)->sendTemplate(...)` for inline templates
+  - `Mail::lettr()->scheduleAt($datetime)->send($mailable)` for `LettrMailable` subclasses
   - `$this->scheduledAt($datetime)` on `LettrMailable` subclasses
   - Transport detects `X-Lettr-Scheduled-At` and routes to `POST /emails/scheduled`
-- **Template Wrapper Methods** - `TemplateServiceWrapper::update()` and `::getHtml()` passthroughs.
-- **Facade PHPDoc** - Added `projects()` and `health()` accessors to the `Lettr` facade docblock.
+- **Template Wrapper Methods** - `TemplateServiceWrapper::update()` and `::getHtml()` passthroughs for the new SDK endpoints.
+- **Facade PHPDoc** - Added `projects()` and `health()` accessors to the `Lettr` facade docblock (already worked at runtime via `__get`).
 
 ### Changed
 
 - **Upgraded `lettr/lettr-php` to `^1.4.0`.** The SDK syncs to API v1.4.0 and adds scheduled emails, email list/events, full webhook CRUD, template update/html, and auth check. All new endpoints are reachable today via `Lettr::emails()` / `Lettr::webhooks()` / `Lettr::templates()` / `Lettr::health()`.
-- **`lettr:push`** no longer computes slugs client-side. The API generates the slug; the command displays whatever the server assigned.
+- **`lettr:push`** now shows the server-assigned slug after creation instead of the client-derived slug. `--dry-run` still previews the client-derived slug because no API call is made. The `(slug conflict resolved)` yellow marker is no longer emitted — the server handles collisions.
 
-### Removed
+### Deprecated
 
-- **`TemplateServiceWrapper::slugExists()`** - The underlying create endpoint has always server-generated slugs, so the client-side existence check was a no-op. Removed from the public API of the wrapper.
+Everything below still works, but will be removed in 2.0.0 — the underlying API has always generated slugs server-side, so client-side slug handling is meaningless.
 
-### Notes for v1.4 consumers
+- **`TemplateServiceWrapper::slugExists()`** — probes `GET /templates/{slug}` and returns a bool. Read the final slug from the `CreatedTemplate` response instead.
+- **`PushCommand::resolveSlug()`** — internal conflict-resolution loop. Kept for subclasses that may have overridden or called it; the value it returns is no longer passed to the API.
+- **The `$slug` parameter on `PushCommand::createTemplate()`** — the method signature is preserved for subclasses, but the argument is ignored. `CreateTemplateData` no longer accepts a slug.
 
-- `Webhook::$eventTypes` can now be `null` when the webhook subscribes to all events (use `$webhook->listensToAllEvents()`).
-- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) is distinct from `Enums\EventType` (used for filtering `/emails/events`).
-- `Domain` / `DomainDetail` / `DomainVerification` response shapes changed upstream (see `lettr/lettr-php` 1.4 notes); the Laravel package does not expose these DTOs directly.
+### Notes for consumers using the raw SDK via the facade
+
+These are upstream `lettr/lettr-php` v1.4 changes — if you drive SDK services directly through `Lettr::emails()` / `Lettr::webhooks()` / etc., check your code:
+
+- `Dto\Template\CreateTemplateData` no longer accepts a `slug` parameter (the API ignored it anyway; the DTO was cleaned up).
+- `Dto\Webhook\Webhook::$eventTypes` can now be `null` when the webhook subscribes to all events — use `$webhook->listensToAllEvents()` before iterating.
+- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) is used for webhook subscriptions. `Enums\EventType` (unprefixed: `delivery`, `click`, ...) remains the filter for `/emails/events`.
+- `Dto\Domain\Domain`, `DomainDetail`, and `DomainVerification` response shapes changed (see `lettr/lettr-php` 1.4 notes). The Laravel package does not expose these DTOs directly.
 
 ## [1.3.0] - 2026-03-19
 

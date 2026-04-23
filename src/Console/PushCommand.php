@@ -39,14 +39,9 @@ class PushCommand extends Command
     protected $description = 'Push local Blade email templates to Lettr API';
 
     /**
-     * @var array<int, array{filename: string, name: string, slug: string}>
+     * @var array<int, array{filename: string, name: string, slug: string, conflict_resolved: bool}>
      */
     protected array $createdTemplates = [];
-
-    /**
-     * @var array<int, array{filename: string, name: string}>
-     */
-    protected array $pendingTemplates = [];
 
     /**
      * @var array<int, array{filename: string, reason: string}>
@@ -202,6 +197,7 @@ class PushCommand extends Command
     {
         $filename = $this->getFilenameWithoutExtension($filePath);
         $name = $this->filenameToName($filename);
+        $baseSlug = $this->filenameToSlug($filename);
 
         // Read file content
         $html = $this->files->get($filePath);
@@ -219,27 +215,59 @@ class PushCommand extends Command
         }
 
         if ($dryRun) {
-            $this->pendingTemplates[] = [
+            // Preview: show the client-derived slug. The server assigns the final slug at create time.
+            $this->createdTemplates[] = [
                 'filename' => basename($filePath),
                 'name' => $name,
+                'slug' => $baseSlug,
+                'conflict_resolved' => false,
             ];
 
             return;
         }
 
-        $created = $this->createTemplate($name, $html);
+        $created = $this->createTemplate($name, $baseSlug, $html);
 
         $this->createdTemplates[] = [
             'filename' => basename($filePath),
             'name' => $created->name,
             'slug' => $created->slug,
+            'conflict_resolved' => false,
         ];
     }
 
     /**
-     * Create a template via the API.
+     * Resolve slug conflicts by appending incrementing numbers.
+     *
+     * @deprecated since 1.5.0. The Lettr API now server-generates slugs at
+     *             template creation time, so client-side probing for free
+     *             slugs is meaningless. The method is kept for subclasses that
+     *             may have overridden or called it; it will be removed in
+     *             2.0.0. Read the final slug from the `CreatedTemplate`
+     *             response instead.
      */
-    protected function createTemplate(string $name, string $html): CreatedTemplate
+    protected function resolveSlug(string $baseSlug): string
+    {
+        $slug = $baseSlug;
+        $counter = 1;
+
+        while ($this->withRateLimitRetry(fn () => $this->lettr->templates()->slugExists($slug))) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Create a template via the API.
+     *
+     * @param  string  $slug  Deprecated since 1.5.0 — the Lettr API generates
+     *                        slugs server-side and ignores a client-supplied
+     *                        value. Kept for subclass signature compatibility;
+     *                        may be removed in 2.0.0.
+     */
+    protected function createTemplate(string $name, string $slug, string $html): CreatedTemplate
     {
         $data = new CreateTemplateData(
             name: $name,
@@ -269,30 +297,37 @@ class PushCommand extends Command
     }
 
     /**
+     * Convert filename to a slug.
+     * Example: "WelcomeEmail" -> "welcome-email"
+     *
+     * Used for the `--dry-run` preview only; at real create time the API
+     * assigns the final slug server-side.
+     */
+    protected function filenameToSlug(string $filename): string
+    {
+        return Str::kebab($filename);
+    }
+
+    /**
      * Output the summary of created templates.
      */
     protected function outputSummary(bool $dryRun): void
     {
         $this->newLine();
 
-        if ($dryRun) {
-            $this->components->twoColumnDetail('<fg=gray>Would create:</>');
+        $prefix = $dryRun ? 'Would create' : 'Created';
+        $this->components->twoColumnDetail("<fg=gray>{$prefix}:</>");
 
-            foreach ($this->pendingTemplates as $template) {
-                $this->components->twoColumnDetail(
-                    "  <fg=green>✓</> {$template['name']}",
-                    '<fg=gray>(slug assigned by server)</>'
-                );
+        foreach ($this->createdTemplates as $template) {
+            $slugDisplay = $template['slug'];
+            if (! empty($template['conflict_resolved'])) {
+                $slugDisplay .= ' <fg=yellow>(slug conflict resolved)</>';
             }
-        } else {
-            $this->components->twoColumnDetail('<fg=gray>Created:</>');
 
-            foreach ($this->createdTemplates as $template) {
-                $this->components->twoColumnDetail(
-                    "  <fg=green>✓</> {$template['name']}",
-                    $template['slug']
-                );
-            }
+            $this->components->twoColumnDetail(
+                "  <fg=green>✓</> {$template['name']}",
+                $slugDisplay
+            );
         }
 
         if (! empty($this->skippedTemplates)) {
@@ -309,7 +344,7 @@ class PushCommand extends Command
 
         $this->newLine();
 
-        $count = $dryRun ? count($this->pendingTemplates) : count($this->createdTemplates);
+        $count = count($this->createdTemplates);
         $action = $dryRun ? 'Would create' : 'Created';
         $this->components->info("Done! {$action} {$count} template(s).");
     }
