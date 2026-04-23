@@ -4,9 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.5.0] - 2026-04-23
+## [2.0.0] - 2026-04-23
 
-No breaking changes. Adopts `lettr/lettr-php` v1.4 features additively and keeps existing public API intact.
+Major version bump with breaking changes on two axes:
+
+1. **Direct breaks in `lettr-laravel`'s public API** — the slug-handling surface on `TemplateServiceWrapper` and `PushCommand` has been deleted (see **Removed** below). Code that called `Lettr::templates()->slugExists()` or subclassed `PushCommand` and used its slug helpers will need updates.
+2. **Transitive breaks from `lettr/lettr-php ^2.0.0`** — the SDK's DTOs, enums, and `TransporterContract` changed shape (see **Transitive SDK v2.0 changes** below).
+
+If you only use `Mail::lettr()` / `LettrMailable` subclasses / the Laravel mail transport, and never touch `TemplateServiceWrapper::slugExists()` or subclass `PushCommand`, the upgrade is `composer update` and you're done. Otherwise audit the two sections below.
 
 ### Added
 
@@ -15,30 +20,35 @@ No breaking changes. Adopts `lettr/lettr-php` v1.4 features additively and keeps
   - `Mail::lettr()->scheduleAt($datetime)->send($mailable)` for `LettrMailable` subclasses
   - `$this->scheduledAt($datetime)` on `LettrMailable` subclasses
   - Transport detects `X-Lettr-Scheduled-At` and routes to `POST /emails/scheduled`
-- **Template Wrapper Methods** - `TemplateServiceWrapper::update()` and `::getHtml()` passthroughs for the new SDK endpoints.
+- **Template Wrapper Methods** - `TemplateServiceWrapper::update()`, `::getHtml()`, and `::delete()` passthroughs for the new SDK endpoints.
 - **Facade PHPDoc** - Added `projects()` and `health()` accessors to the `Lettr` facade docblock (already worked at runtime via `__get`).
 
 ### Changed
 
-- **Upgraded `lettr/lettr-php` to `^1.4.0`.** The SDK syncs to API v1.4.0 and adds scheduled emails, email list/events, full webhook CRUD, template update/html, and auth check. All new endpoints are reachable today via `Lettr::emails()` / `Lettr::webhooks()` / `Lettr::templates()` / `Lettr::health()`.
-- **`lettr:push`** now shows the server-assigned slug after creation instead of the client-derived slug. `--dry-run` still previews the client-derived slug because no API call is made. The `(slug conflict resolved)` yellow marker is no longer emitted — the server handles collisions.
+- **Upgraded `lettr/lettr-php` to `^2.0.0`.** The SDK syncs to API v1.4 (scheduled emails, email list/events, full webhook CRUD, template update/html, auth check) and was re-tagged as v2.0.0 to correctly reflect its breaking DTO/contract changes under SemVer. All new endpoints are reachable via `Lettr::emails()` / `Lettr::webhooks()` / `Lettr::templates()` / `Lettr::health()`.
+- **`lettr:push`** now shows the server-assigned slug after creation. In `--dry-run` mode the summary no longer shows a client-guessed slug (the server assigns it at create time) — it prints `(slug assigned by server)` next to each template name. The `(slug conflict resolved)` yellow marker is no longer emitted — the server handles collisions.
 
-### Deprecated
+### Removed
 
-Everything below still works, but will be removed in 2.0.0 — the underlying API has always generated slugs server-side, so client-side slug handling is meaningless.
+The underlying API has always generated slugs server-side, so client-side slug handling was dead code. Cashing in the removals now that this is a major bump:
 
-- **`TemplateServiceWrapper::slugExists()`** — probes `GET /templates/{slug}` and returns a bool. Read the final slug from the `CreatedTemplate` response instead.
-- **`PushCommand::resolveSlug()`** — internal conflict-resolution loop. Kept for subclasses that may have overridden or called it; the value it returns is no longer passed to the API.
-- **The `$slug` parameter on `PushCommand::createTemplate()`** — the method signature is preserved for subclasses, but the argument is ignored. `CreateTemplateData` no longer accepts a slug.
+- **`TemplateServiceWrapper::slugExists()`** — gone. Read the server-assigned slug from the `CreatedTemplate` response instead.
+- **`PushCommand::resolveSlug()`** — gone. No replacement needed.
+- **`PushCommand::filenameToSlug()`** — gone. Dry-run previews no longer show a client-derived slug.
+- **The `$slug` parameter on `PushCommand::createTemplate()`** — signature changed from `createTemplate(string $name, string $slug, string $html)` to `createTemplate(string $name, string $html)`. Subclasses that overrode it must update their signature.
+- **`PushCommand`'s `$createdTemplates` entries no longer carry a `conflict_resolved` key.**
 
-### Notes for consumers using the raw SDK via the facade
+### Transitive SDK v2.0 changes (upstream `lettr/lettr-php` breaking changes)
 
-These are upstream `lettr/lettr-php` v1.4 changes — if you drive SDK services directly through `Lettr::emails()` / `Lettr::webhooks()` / etc., check your code:
+If you drive SDK services directly through the facade, audit these call sites:
 
-- `Dto\Template\CreateTemplateData` no longer accepts a `slug` parameter (the API ignored it anyway; the DTO was cleaned up).
-- `Dto\Webhook\Webhook::$eventTypes` can now be `null` when the webhook subscribes to all events — use `$webhook->listensToAllEvents()` before iterating.
-- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) is used for webhook subscriptions. `Enums\EventType` (unprefixed: `delivery`, `click`, ...) remains the filter for `/emails/events`.
-- `Dto\Domain\Domain`, `DomainDetail`, and `DomainVerification` response shapes changed (see `lettr/lettr-php` 1.4 notes). The Laravel package does not expose these DTOs directly.
+- `Dto\Template\CreateTemplateData` no longer accepts a `slug` parameter. Drop the `slug:` arg; read the server-assigned slug from the `CreatedTemplate` response.
+- `Dto\Webhook\Webhook::$eventTypes` is now `?WebhookEventTypeCollection` — `null` means the webhook subscribes to all events. Guard iteration with `$webhook->listensToAllEvents()`.
+- `Enums\WebhookEventType` (namespaced: `message.delivery`, `engagement.click`, ...) replaces `Enums\EventType` in webhook subscription contexts. `Enums\EventType` (unprefixed: `delivery`, `click`, ...) remains the filter for `/emails/events`.
+- `Dto\Domain\Domain` fields: removed `returnPathStatus`, `verifiedAt`; added `cnameStatus`, `statusLabel`, `updatedAt`.
+- `Dto\Domain\DomainDetail` fields: removed `verifiedAt`; added `statusLabel`, `spfStatus`, `isPrimaryDomain`, `dnsProvider`.
+- `Dto\Domain\DomainVerification::$ownershipVerified` retyped `?bool` → `?string`.
+- `Contracts\TransporterContract` gained a required `put(string $uri, array $data): array` method. Only affects custom transporter implementations.
 
 ## [1.3.0] - 2026-03-19
 

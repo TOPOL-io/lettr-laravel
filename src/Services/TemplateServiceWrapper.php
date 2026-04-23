@@ -10,7 +10,6 @@ use Lettr\Dto\Template\ListTemplatesFilter;
 use Lettr\Dto\Template\TemplateDetail;
 use Lettr\Dto\Template\UpdatedTemplate;
 use Lettr\Dto\Template\UpdateTemplateData;
-use Lettr\Exceptions\ApiException;
 use Lettr\Responses\GetMergeTagsResponse;
 use Lettr\Responses\GetTemplateHtmlResponse;
 use Lettr\Responses\ListTemplatesResponse;
@@ -74,26 +73,10 @@ class TemplateServiceWrapper
     }
 
     /**
-     * Check if a template with the given slug exists.
-     *
-     * @deprecated since 1.5.0. The Lettr API now server-generates slugs when a
-     *             template is created, so probing for client-chosen slug
-     *             collisions is no longer meaningful. Fetch the server-assigned
-     *             slug from the CreatedTemplate response instead. This method
-     *             will be removed in 2.0.0.
+     * Delete a template by slug.
      */
-    public function slugExists(string $slug, ?int $projectId = null): bool
+    public function delete(string $slug, ?int $projectId = null): void
     {
-        try {
-            $this->templateService->get($slug, $projectId);
-
-            return true;
-        } catch (ApiException $e) {
-            if ($e->getCode() === 404) {
-                return false;
-            }
-
-            throw $e;
-        }
+        $this->templateService->delete($slug, $projectId);
     }
 }
