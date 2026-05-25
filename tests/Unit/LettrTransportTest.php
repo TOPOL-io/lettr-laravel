@@ -51,11 +51,26 @@ it('does not pass subject to builder when subject is null and template slug is s
             return ['request_id' => 'test-id'];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -115,11 +130,26 @@ it('passes subject to builder when subject is provided with template', function 
             return ['request_id' => 'test-id'];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -179,11 +209,26 @@ it('forwards custom headers to the Lettr API', function () {
             return ['request_id' => 'test-id'];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -245,11 +290,26 @@ it('does not forward internal X-Lettr headers as custom headers', function () {
             return ['request_id' => 'test-id'];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -313,11 +373,26 @@ it('does not forward standard email headers as custom headers', function () {
             return ['request_id' => 'test-id'];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -387,11 +462,26 @@ it('routes scheduled emails to the /emails/scheduled endpoint when X-Lettr-Sched
             return [];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 
@@ -450,11 +540,26 @@ it('uses the /emails endpoint when X-Lettr-Scheduled-At is absent', function () 
             return [];
         }
 
+        public function patch(string $uri, array $data): array
+        {
+            return ['request_id' => 'test-id'];
+        }
+
         public function delete(string $uri): void {}
+
+        public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
 
         public function lastResponseHeaders(): array
         {
             return [];
+        }
+
+        public function lastStatusCode(): ?int
+        {
+            return null;
         }
     };
 

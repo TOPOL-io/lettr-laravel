@@ -10,11 +10,30 @@
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Facades\Mail;
 use Lettr\Builders\EmailBuilder;
+use Lettr\Dto\Audience\CreateAudienceContactData;
+use Lettr\Dto\Audience\DoubleOptInConfig;
+use Lettr\Dto\Audience\ListAudienceContactsFilter;
+use Lettr\Dto\Audience\SegmentCondition;
+use Lettr\Dto\Audience\SegmentConditionGroup;
+use Lettr\Dto\Audience\SegmentConditionsInput;
+use Lettr\Dto\Audience\UpdateAudiencePropertyData;
+use Lettr\Dto\Audience\UpdateAudienceSegmentData;
+use Lettr\Enums\AudienceContactStatus;
+use Lettr\Enums\AudiencePropertyType;
+use Lettr\Enums\AudienceTopicDefaultSubscription;
+use Lettr\Enums\AudienceTopicVisibility;
 use Lettr\Enums\EventType;
+use Lettr\Enums\SegmentOperator;
 use Lettr\Laravel\Facades\Lettr;
 use Lettr\Laravel\Mail\InlineLettrMailable;
 use Lettr\Laravel\Mail\LettrMailable;
 use Lettr\Laravel\Mail\LettrPendingMail;
+use Lettr\Services\Audience\AudienceContactService;
+use Lettr\Services\Audience\AudienceListService;
+use Lettr\Services\Audience\AudiencePropertyService;
+use Lettr\Services\Audience\AudienceSegmentService;
+use Lettr\Services\Audience\AudienceTopicService;
+use Lettr\Services\AudienceService;
 
 // ---------------------------------------------------------------------------
 // Section: Using the Lettr Facade Directly — Email Builder
@@ -373,4 +392,155 @@ it('EventType enum contains all documented event type values', function () {
     foreach ($documented as $value) {
         expect($actual)->toContain($value);
     }
+});
+
+// ---------------------------------------------------------------------------
+// Section: Audience Management — facade resolution
+// ---------------------------------------------------------------------------
+
+it('audience facade returns the AudienceService', function () {
+    expect(Lettr::audience())->toBeInstanceOf(AudienceService::class);
+});
+
+it('audience exposes the five documented sub-services', function () {
+    $audience = Lettr::audience();
+
+    expect($audience->contacts())->toBeInstanceOf(AudienceContactService::class)
+        ->and($audience->lists())->toBeInstanceOf(AudienceListService::class)
+        ->and($audience->segments())->toBeInstanceOf(AudienceSegmentService::class)
+        ->and($audience->topics())->toBeInstanceOf(AudienceTopicService::class)
+        ->and($audience->properties())->toBeInstanceOf(AudiencePropertyService::class);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Audience Management — Contacts
+// ---------------------------------------------------------------------------
+
+it('CreateAudienceContactData carries email, list id and properties', function () {
+    $data = new CreateAudienceContactData(
+        email: 'jane@example.com',
+        listId: 'list-uuid',
+        properties: ['first_name' => 'Jane', 'plan' => 'pro'],
+    );
+
+    expect($data->email)->toBe('jane@example.com')
+        ->and($data->listId)->toBe('list-uuid')
+        ->and($data->properties)->toBe(['first_name' => 'Jane', 'plan' => 'pro']);
+});
+
+it('DoubleOptInConfig keeps the documented confirmation settings', function () {
+    $config = new DoubleOptInConfig(
+        from: 'hello@example.com',
+        subject: 'Confirm your subscription',
+        templateSlug: 'email-confirmation',
+        redirectUrl: 'https://example.com/confirmed',
+        fromName: 'Example',
+    );
+
+    expect($config->from)->toBe('hello@example.com')
+        ->and($config->subject)->toBe('Confirm your subscription')
+        ->and($config->templateSlug)->toBe('email-confirmation')
+        ->and($config->redirectUrl)->toBe('https://example.com/confirmed')
+        ->and($config->fromName)->toBe('Example');
+});
+
+it('ListAudienceContactsFilter builds fluently into query params', function () {
+    $filter = ListAudienceContactsFilter::create()
+        ->page(1)
+        ->perPage(50)
+        ->search('jane')
+        ->status(AudienceContactStatus::Subscribed)
+        ->listId('list-uuid');
+
+    expect($filter->toArray())->toBe([
+        'page' => 1,
+        'per_page' => 50,
+        'search' => 'jane',
+        'status' => 'subscribed',
+        'list_id' => 'list-uuid',
+    ]);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Audience Management — Segments
+// ---------------------------------------------------------------------------
+
+it('SegmentConditionsInput serializes groups and conditions as documented', function () {
+    $conditions = new SegmentConditionsInput(groups: [
+        new SegmentConditionGroup(conditions: [
+            new SegmentCondition('email', SegmentOperator::EndsWith, '@example.com'),
+            new SegmentCondition('plan', SegmentOperator::Equals, 'pro'),
+        ]),
+    ]);
+
+    expect($conditions->toArray())->toBe([
+        'groups' => [
+            [
+                'conditions' => [
+                    ['field' => 'email', 'operator' => 'ends_with', 'value' => '@example.com'],
+                    ['field' => 'plan', 'operator' => 'equals', 'value' => 'pro'],
+                ],
+            ],
+        ],
+    ]);
+});
+
+it('UpdateAudienceSegmentData builder produces an instance', function () {
+    $conditions = new SegmentConditionsInput(groups: [
+        new SegmentConditionGroup(conditions: [
+            new SegmentCondition('email', SegmentOperator::Contains, '@example.com'),
+        ]),
+    ]);
+
+    $data = UpdateAudienceSegmentData::empty()
+        ->withName('Renamed segment')
+        ->withConditions($conditions);
+
+    expect($data)->toBeInstanceOf(UpdateAudienceSegmentData::class);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Audience Management — Properties update builders
+// ---------------------------------------------------------------------------
+
+it('UpdateAudiencePropertyData exposes withFallback and clearFallback', function () {
+    expect(UpdateAudiencePropertyData::withFallback('basic'))->toBeInstanceOf(UpdateAudiencePropertyData::class)
+        ->and(UpdateAudiencePropertyData::clearFallback())->toBeInstanceOf(UpdateAudiencePropertyData::class);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Audience Management — Enums
+// ---------------------------------------------------------------------------
+
+it('AudienceContactStatus reports labels and email eligibility', function () {
+    expect(AudienceContactStatus::Subscribed->label())->toBe('Subscribed')
+        ->and(AudienceContactStatus::Subscribed->canReceiveEmails())->toBeTrue()
+        ->and(AudienceContactStatus::Unsubscribed->canReceiveEmails())->toBeFalse();
+});
+
+it('SegmentOperator reports whether a value is required', function () {
+    expect(SegmentOperator::Contains->requiresValue())->toBeTrue()
+        ->and(SegmentOperator::IsTrue->requiresValue())->toBeFalse()
+        ->and(SegmentOperator::IsFalse->requiresValue())->toBeFalse()
+        ->and(SegmentOperator::Contains->label())->toBe('Contains');
+});
+
+it('AudiencePropertyType exposes the documented type values', function () {
+    expect(AudiencePropertyType::StringType->value)->toBe('string')
+        ->and(AudiencePropertyType::NumberType->value)->toBe('number')
+        ->and(AudiencePropertyType::BooleanType->value)->toBe('boolean')
+        ->and(AudiencePropertyType::DateType->value)->toBe('date')
+        ->and(AudiencePropertyType::JsonType->value)->toBe('json');
+});
+
+it('AudienceTopicVisibility reports public vs private', function () {
+    expect(AudienceTopicVisibility::PublicVisibility->isPublic())->toBeTrue()
+        ->and(AudienceTopicVisibility::PrivateVisibility->isPublic())->toBeFalse()
+        ->and(AudienceTopicVisibility::PublicVisibility->value)->toBe('public');
+});
+
+it('AudienceTopicDefaultSubscription reports opt-in semantics', function () {
+    expect(AudienceTopicDefaultSubscription::OptIn->isOptIn())->toBeTrue()
+        ->and(AudienceTopicDefaultSubscription::OptIn->subscribesNewContactsByDefault())->toBeFalse()
+        ->and(AudienceTopicDefaultSubscription::OptOut->subscribesNewContactsByDefault())->toBeTrue();
 });

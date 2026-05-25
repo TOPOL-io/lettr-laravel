@@ -778,6 +778,264 @@ Lettr::webhooks()->update($created->id, new UpdateWebhookData(
 Lettr::webhooks()->delete($created->id);
 ```
 
+## Audience Management
+
+The audience API lets you manage **contacts**, **lists**, **segments**, **topics**, and
+custom **properties**. Everything is reached through a single entry point,
+`Lettr::audience()`, which mirrors the underlying SDK:
+
+```php
+Lettr::audience()->contacts();    // Lettr\Services\Audience\AudienceContactService
+Lettr::audience()->lists();       // Lettr\Services\Audience\AudienceListService
+Lettr::audience()->segments();    // Lettr\Services\Audience\AudienceSegmentService
+Lettr::audience()->topics();      // Lettr\Services\Audience\AudienceTopicService
+Lettr::audience()->properties();  // Lettr\Services\Audience\AudiencePropertyService
+```
+
+All list endpoints are paginated and return a response object exposing the data collection,
+a `pagination` object, and a `hasMore()` helper.
+
+### Contacts
+
+```php
+use Lettr\Dto\Audience\CreateAudienceContactData;
+use Lettr\Dto\Audience\UpdateAudienceContactData;
+use Lettr\Dto\Audience\ListAudienceContactsFilter;
+use Lettr\Enums\AudienceContactStatus;
+
+// Create a contact (optionally attach to a list and set custom properties)
+$contact = Lettr::audience()->contacts()->create(new CreateAudienceContactData(
+    email: 'jane@example.com',
+    listId: 'list-uuid',
+    properties: ['first_name' => 'Jane', 'plan' => 'pro'],
+));
+
+$contact->id;     // "contact-uuid"
+$contact->email;  // "jane@example.com"
+$contact->status; // AudienceContactStatus::Subscribed
+
+// List with filtering and pagination
+$response = Lettr::audience()->contacts()->list(
+    ListAudienceContactsFilter::create()
+        ->page(1)
+        ->perPage(50)
+        ->search('jane')
+        ->status(AudienceContactStatus::Subscribed)
+        ->listId('list-uuid')
+);
+
+foreach ($response->contacts as $contact) {
+    // ...
+}
+$response->pagination->total;
+$response->hasMore();
+
+// Get, update, delete
+$contact = Lettr::audience()->contacts()->get('contact-uuid');
+
+Lettr::audience()->contacts()->update('contact-uuid', new UpdateAudienceContactData(
+    status: AudienceContactStatus::Unsubscribed,
+    properties: ['plan' => 'enterprise'],
+));
+
+Lettr::audience()->contacts()->delete('contact-uuid');
+```
+
+#### Double opt-in
+
+Pass a `DoubleOptInConfig` to create the contact as `unverified` and trigger a confirmation
+email — the contact becomes `subscribed` once they click the link.
+
+```php
+use Lettr\Dto\Audience\CreateAudienceContactData;
+use Lettr\Dto\Audience\DoubleOptInConfig;
+
+Lettr::audience()->contacts()->create(new CreateAudienceContactData(
+    email: 'jane@example.com',
+    doubleOptIn: new DoubleOptInConfig(
+        from: 'hello@example.com',
+        subject: 'Confirm your subscription',
+        templateSlug: 'email-confirmation',
+        redirectUrl: 'https://example.com/confirmed',
+        fromName: 'Example',
+    ),
+));
+```
+
+#### Bulk operations & list/topic membership
+
+```php
+use Lettr\Dto\Audience\BulkCreateAudienceContactsData;
+use Lettr\Dto\Audience\BulkAttachContactsToListsData;
+use Lettr\Dto\Audience\BulkDetachContactsFromListsData;
+
+// Bulk create (up to 1000 emails)
+$result = Lettr::audience()->contacts()->bulkCreate(new BulkCreateAudienceContactsData(
+    emails: ['a@example.com', 'b@example.com'],
+    listId: 'list-uuid',
+));
+$result->created;        // int
+$result->alreadyExisted; // int
+
+// Attach / detach a single contact to a list (true if newly attached, false if already attached)
+$attached = Lettr::audience()->contacts()->attachList('contact-uuid', 'list-uuid');
+Lettr::audience()->contacts()->detachList('contact-uuid', 'list-uuid');
+
+// Bulk attach / detach (up to 1000 contacts x 50 lists)
+$result = Lettr::audience()->contacts()->bulkAttachLists(new BulkAttachContactsToListsData(
+    contactIds: ['contact-1', 'contact-2'],
+    listIds: ['list-1', 'list-2'],
+));
+$result->attached;        // int
+$result->alreadyAttached; // int
+$result->totalPairs;      // int
+
+Lettr::audience()->contacts()->bulkDetachLists(new BulkDetachContactsFromListsData(
+    contactIds: ['contact-1'],
+    listIds: ['list-1'],
+));
+
+// Subscribe / unsubscribe a contact to a topic (true if newly subscribed)
+Lettr::audience()->contacts()->subscribeTopic('contact-uuid', 'topic-uuid');
+Lettr::audience()->contacts()->unsubscribeTopic('contact-uuid', 'topic-uuid');
+```
+
+### Lists
+
+```php
+use Lettr\Dto\Audience\CreateAudienceListData;
+use Lettr\Dto\Audience\UpdateAudienceListData;
+use Lettr\Dto\Audience\BulkDeleteAudienceListsData;
+use Lettr\Dto\Audience\ListAudienceListsFilter;
+
+$list = Lettr::audience()->lists()->create(new CreateAudienceListData(name: 'Newsletter'));
+$list->id;
+$list->name;
+$list->contactsCount;
+
+$response = Lettr::audience()->lists()->list(
+    ListAudienceListsFilter::create()->page(1)->perPage(20)
+);
+
+$list = Lettr::audience()->lists()->get('list-uuid');
+
+Lettr::audience()->lists()->update('list-uuid', new UpdateAudienceListData(name: 'Weekly digest'));
+
+Lettr::audience()->lists()->delete('list-uuid');
+
+// Bulk delete (up to 50)
+$result = Lettr::audience()->lists()->bulkDelete(new BulkDeleteAudienceListsData(
+    listIds: ['list-1', 'list-2'],
+));
+$result->deleted; // int
+```
+
+### Segments
+
+Segment conditions are grouped: groups are joined by **OR**, and conditions within a group
+are joined by **AND**. Build them with `SegmentConditionsInput` / `SegmentConditionGroup` /
+`SegmentCondition` and the `SegmentOperator` enum.
+
+```php
+use Lettr\Dto\Audience\CreateAudienceSegmentData;
+use Lettr\Dto\Audience\UpdateAudienceSegmentData;
+use Lettr\Dto\Audience\ListAudienceSegmentsFilter;
+use Lettr\Dto\Audience\SegmentConditionsInput;
+use Lettr\Dto\Audience\SegmentConditionGroup;
+use Lettr\Dto\Audience\SegmentCondition;
+use Lettr\Enums\SegmentOperator;
+
+$conditions = new SegmentConditionsInput(groups: [
+    new SegmentConditionGroup(conditions: [
+        new SegmentCondition('email', SegmentOperator::EndsWith, '@example.com'),
+        new SegmentCondition('plan', SegmentOperator::Equals, 'pro'),
+    ]),
+]);
+
+$segment = Lettr::audience()->segments()->create(new CreateAudienceSegmentData(
+    name: 'Pro users at example.com',
+    conditions: $conditions,
+    listId: 'list-uuid', // optional: restrict to one list (null = all lists)
+));
+
+$response = Lettr::audience()->segments()->list(
+    ListAudienceSegmentsFilter::create()->listId('list-uuid')
+);
+
+$segment = Lettr::audience()->segments()->get('segment-uuid');
+
+// Update DTO uses a builder (only the touched fields are sent)
+Lettr::audience()->segments()->update('segment-uuid', UpdateAudienceSegmentData::empty()
+    ->withName('Renamed segment')
+    ->withConditions($conditions));
+
+Lettr::audience()->segments()->delete('segment-uuid');
+```
+
+Operators that don't take a value (`SegmentOperator::IsTrue`, `SegmentOperator::IsFalse`)
+report this via `requiresValue()`.
+
+### Topics
+
+```php
+use Lettr\Dto\Audience\CreateAudienceTopicData;
+use Lettr\Dto\Audience\UpdateAudienceTopicData;
+use Lettr\Dto\Audience\ListAudienceTopicsFilter;
+use Lettr\Enums\AudienceTopicDefaultSubscription;
+use Lettr\Enums\AudienceTopicVisibility;
+
+$topic = Lettr::audience()->topics()->create(new CreateAudienceTopicData(
+    name: 'Product updates',
+    description: 'Occasional product news',
+    defaultSubscription: AudienceTopicDefaultSubscription::OptIn, // immutable after creation
+    visibility: AudienceTopicVisibility::PublicVisibility,
+));
+
+$response = Lettr::audience()->topics()->list(
+    ListAudienceTopicsFilter::create()->perPage(20)
+);
+
+$topic = Lettr::audience()->topics()->get('topic-uuid');
+
+// default_subscription cannot be changed after creation
+Lettr::audience()->topics()->update('topic-uuid', new UpdateAudienceTopicData(
+    name: 'Product news',
+    visibility: AudienceTopicVisibility::PrivateVisibility,
+));
+
+Lettr::audience()->topics()->delete('topic-uuid');
+```
+
+### Properties
+
+Custom contact properties have an immutable `name` (must match `^[a-z][a-z0-9_]*$`) and an
+immutable `type`. Only the fallback value can be updated.
+
+```php
+use Lettr\Dto\Audience\CreateAudiencePropertyData;
+use Lettr\Dto\Audience\UpdateAudiencePropertyData;
+use Lettr\Dto\Audience\ListAudiencePropertiesFilter;
+use Lettr\Enums\AudiencePropertyType;
+
+$property = Lettr::audience()->properties()->create(new CreateAudiencePropertyData(
+    name: 'plan',
+    type: AudiencePropertyType::StringType,
+    fallbackValue: 'free',
+));
+
+$response = Lettr::audience()->properties()->list(
+    ListAudiencePropertiesFilter::create()->page(1)
+);
+
+$property = Lettr::audience()->properties()->get('property-uuid');
+
+// Only the fallback can change — use the named constructors
+Lettr::audience()->properties()->update('property-uuid', UpdateAudiencePropertyData::withFallback('basic'));
+Lettr::audience()->properties()->update('property-uuid', UpdateAudiencePropertyData::clearFallback());
+
+Lettr::audience()->properties()->delete('property-uuid');
+```
+
 ## Event Types
 
 The SDK exposes two related enums:
