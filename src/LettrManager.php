@@ -7,6 +7,7 @@ namespace Lettr\Laravel;
 use Closure;
 use Lettr\Laravel\Services\TemplateServiceWrapper;
 use Lettr\Lettr;
+use Lettr\Services\AudienceService;
 use Lettr\Services\DomainService;
 use Lettr\Services\EmailService;
 use Lettr\Services\HealthService;
@@ -20,6 +21,7 @@ use Lettr\Services\WebhookService;
  * @property-read DomainService $domains
  * @property-read ProjectService $projects
  * @property-read WebhookService $webhooks
+ * @property-read AudienceService $audience
  * @property-read TemplateServiceWrapper $templates
  */
 class LettrManager
@@ -88,6 +90,14 @@ class LettrManager
     }
 
     /**
+     * Get the audience service (contacts, lists, segments, topics, properties).
+     */
+    public function audience(): AudienceService
+    {
+        return $this->lettr()->audience();
+    }
+
+    /**
      * Get the template service wrapper.
      */
     public function templates(): TemplateServiceWrapper
@@ -121,6 +131,7 @@ class LettrManager
             'webhooks' => $this->webhooks(),
             'templates' => $this->templates(),
             'health' => $this->health(),
+            'audience' => $this->audience(),
             default => throw new \InvalidArgumentException("Unknown service: {$name}"),
         };
     }

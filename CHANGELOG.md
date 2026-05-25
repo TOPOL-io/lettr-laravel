@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-05-25
+
+### Added
+
+- **Audience API** - Manage contacts, lists, segments, topics, and custom properties through a single `Lettr::audience()` entry point:
+  - `Lettr::audience()->contacts()` / `->lists()` / `->segments()` / `->topics()` / `->properties()` expose the five audience sub-services (also reachable as magic properties, e.g. `Lettr::audience()->contacts`)
+  - Contacts support creation with list attachment, custom properties, and double opt-in, plus bulk operations (bulk create, attach/detach lists, subscribe/unsubscribe topics)
+  - Lists, segments, topics, and properties expose full CRUD with paginated, filterable `list()` endpoints
+  - Added `audience()` to the `Lettr` facade and `LettrManager` docblocks
+  - See the **Audience Management** section of the README for full usage examples
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^2.1.0`** for the audience API. The SDK's `TransporterContract` gained `patch()`, `deleteWithBody()`, and `lastStatusCode()` methods — only affects custom transporter implementations.
+
 ## [2.0.0] - 2026-04-23
 
 Major version bump with breaking changes on two axes:

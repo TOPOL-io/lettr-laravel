@@ -13,6 +13,7 @@ use Lettr\Laravel\LettrManager;
  * @method static \Lettr\Services\ProjectService projects()
  * @method static \Lettr\Services\WebhookService webhooks()
  * @method static \Lettr\Services\HealthService health()
+ * @method static \Lettr\Services\AudienceService audience()
  * @method static \Lettr\Laravel\Services\TemplateServiceWrapper templates()
  *
  * @see \Lettr\Lettr
