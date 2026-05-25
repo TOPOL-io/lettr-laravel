@@ -23,7 +23,7 @@ class LettrServiceProvider extends ServiceProvider
     /**
      * The package version.
      */
-    public const VERSION = '1.3.0';
+    public const VERSION = '2.1.0';
 
     /**
      * Bootstrap any application services.
