@@ -8,6 +8,7 @@ use Closure;
 use Lettr\Laravel\Services\TemplateServiceWrapper;
 use Lettr\Lettr;
 use Lettr\Services\AudienceService;
+use Lettr\Services\CampaignService;
 use Lettr\Services\DomainService;
 use Lettr\Services\EmailService;
 use Lettr\Services\HealthService;
@@ -22,6 +23,7 @@ use Lettr\Services\WebhookService;
  * @property-read ProjectService $projects
  * @property-read WebhookService $webhooks
  * @property-read AudienceService $audience
+ * @property-read CampaignService $campaigns
  * @property-read TemplateServiceWrapper $templates
  */
 class LettrManager
@@ -98,6 +100,14 @@ class LettrManager
     }
 
     /**
+     * Get the campaign service (list, get, events, send, schedule, unschedule).
+     */
+    public function campaigns(): CampaignService
+    {
+        return $this->lettr()->campaigns();
+    }
+
+    /**
      * Get the template service wrapper.
      */
     public function templates(): TemplateServiceWrapper
@@ -132,6 +142,7 @@ class LettrManager
             'templates' => $this->templates(),
             'health' => $this->health(),
             'audience' => $this->audience(),
+            'campaigns' => $this->campaigns(),
             default => throw new \InvalidArgumentException("Unknown service: {$name}"),
         };
     }

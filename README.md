@@ -1036,6 +1036,113 @@ Lettr::audience()->properties()->update('property-uuid', UpdateAudiencePropertyD
 Lettr::audience()->properties()->delete('property-uuid');
 ```
 
+## Campaigns
+
+Campaigns are read-only plus lifecycle actions (send, schedule, unschedule) — there is no
+create/update/delete via the API. Reach the service via `Lettr::campaigns()`. All endpoints
+require an API key with the `campaigns:read` (reads) or `campaigns:write` (actions) scope.
+
+- `list()` returns `Lettr\Dto\Campaign\CampaignSummary` items.
+- `get()` returns a `Lettr\Dto\Campaign\CampaignDetail` (a subclass of `CampaignSummary`)
+  with the rendered email body at `$campaign->htmlContent`.
+- `send()`, `schedule()`, and `unschedule()` return a plain `CampaignSummary` —
+  `htmlContent` is intentionally not exposed on the action results because the API
+  doesn't include it in action responses. Call `get()` if you need the rendered body.
+
+`$campaign->status` is typed `CampaignStatus|string` and `$event->eventType` is typed
+`EventType|string` — unknown values from a server-side enum extension are preserved as raw
+strings instead of throwing.
+
+### List Campaigns
+
+```php
+use Lettr\Dto\Campaign\ListCampaignsFilter;
+use Lettr\Enums\CampaignStatus;
+
+$response = Lettr::campaigns()->list();
+
+foreach ($response->campaigns as $campaign) {
+    echo $campaign->name;               // "Spring Sale"
+    echo $campaign->sentCount;          // 124
+    echo $campaign->stats->uniqueOpens; // engagement stats are embedded
+
+    if ($campaign->status === CampaignStatus::Sent) {
+        echo 'Already delivered';
+    }
+}
+
+echo $response->pagination->total;
+echo $response->hasMore();
+
+// Filter by status and page
+$response = Lettr::campaigns()->list(
+    ListCampaignsFilter::create()->status(CampaignStatus::Sent)->page(2)->perPage(50),
+);
+```
+
+### Get a Campaign
+
+```php
+// Returns CampaignDetail (extends CampaignSummary, adds $htmlContent)
+$campaign = Lettr::campaigns()->get('campaign-uuid');
+
+echo $campaign->subject;
+echo $campaign->htmlContent; // rendered HTML body — CampaignDetail only
+echo $campaign->stats->clicks;
+```
+
+### List Campaign Events
+
+Engagement events use cursor-based pagination. Reuse `Lettr\Enums\EventType`; the campaigns
+endpoint only emits the seven engagement-subset values (`injection`, `delivery`, `bounce`,
+`spam_complaint`, `open`, `click`, `list_unsubscribe`).
+
+```php
+use DateTimeImmutable;
+use Lettr\Dto\Campaign\ListCampaignEventsFilter;
+use Lettr\Enums\EventType;
+
+$cursor = null;
+
+do {
+    $response = Lettr::campaigns()->events('campaign-uuid', ListCampaignEventsFilter::create()
+        ->eventType(EventType::Click)
+        ->startDate(new DateTimeImmutable('-7 days'))
+        ->cursor($cursor));
+
+    foreach ($response->events as $event) {
+        echo $event->email;
+        echo $event->timestamp;
+        echo $event->targetLinkUrl; // for click events
+    }
+
+    $cursor = $response->nextCursor;
+} while ($response->hasMore());
+```
+
+### Send / Schedule / Unschedule
+
+```php
+use DateTimeImmutable;
+use DateTimeZone;
+
+// Dispatch a draft campaign immediately (asynchronous; transitions to "preparing")
+$campaign = Lettr::campaigns()->send('campaign-uuid');
+
+// Schedule for future delivery — accepts a DateTimeInterface or an ISO-8601 string.
+// Calling schedule() on an already-scheduled campaign reschedules it.
+Lettr::campaigns()->schedule(
+    'campaign-uuid',
+    new DateTimeImmutable('2026-06-01 09:00:00', new DateTimeZone('+02:00')),
+);
+
+// Cancel a scheduled send, returning the campaign to draft
+Lettr::campaigns()->unschedule('campaign-uuid');
+```
+
+The three action methods always return a non-null `CampaignSummary` — if the API omits the
+campaign payload from the action response, the SDK transparently refetches it.
+
 ## Event Types
 
 The SDK exposes two related enums:
