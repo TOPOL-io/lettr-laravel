@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-05-28
+
+### Added
+
+- **Campaigns API** — Read campaigns and run their lifecycle actions through `Lettr::campaigns()`:
+  - `list()` returns `CampaignSummary` items; `get()` returns a `CampaignDetail` (subclass of `CampaignSummary`) carrying the rendered `$htmlContent`
+  - `events()` for cursor-paginated engagement events (`EventType` filterable)
+  - `send()`, `schedule()`, `unschedule()` lifecycle actions — each returns a non-null `CampaignSummary` (the SDK transparently refetches if the API omits the campaign payload from the action response). `htmlContent` is intentionally not exposed on action results because the API doesn't include it there; call `get()` if you need the rendered body.
+  - Added `campaigns()` to the `Lettr` facade and `LettrManager` docblocks (also reachable as a magic property: `Lettr::campaigns()` ↔ `app('lettr')->campaigns`)
+  - See the **Campaigns** section of the README for full usage examples
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^2.3.0`** for the campaigns API. The SDK's `TransporterContract` gained `postExpectingEnvelope()` — only affects custom transporter implementations.
+
 ## [2.1.0] - 2026-05-25
 
 ### Added

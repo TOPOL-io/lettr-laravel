@@ -63,6 +63,11 @@ it('does not pass subject to builder when subject is null and template slug is s
             return [];
         }
 
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
+        {
+            return [];
+        }
+
         public function lastResponseHeaders(): array
         {
             return [];
@@ -142,6 +147,11 @@ it('passes subject to builder when subject is provided with template', function 
             return [];
         }
 
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
+        {
+            return [];
+        }
+
         public function lastResponseHeaders(): array
         {
             return [];
@@ -217,6 +227,11 @@ it('forwards custom headers to the Lettr API', function () {
         public function delete(string $uri): void {}
 
         public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
+
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
         {
             return [];
         }
@@ -302,6 +317,11 @@ it('does not forward internal X-Lettr headers as custom headers', function () {
             return [];
         }
 
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
+        {
+            return [];
+        }
+
         public function lastResponseHeaders(): array
         {
             return [];
@@ -381,6 +401,11 @@ it('does not forward standard email headers as custom headers', function () {
         public function delete(string $uri): void {}
 
         public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
+
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
         {
             return [];
         }
@@ -474,6 +499,11 @@ it('routes scheduled emails to the /emails/scheduled endpoint when X-Lettr-Sched
             return [];
         }
 
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
+        {
+            return [];
+        }
+
         public function lastResponseHeaders(): array
         {
             return [];
@@ -548,6 +578,11 @@ it('uses the /emails endpoint when X-Lettr-Scheduled-At is absent', function () 
         public function delete(string $uri): void {}
 
         public function deleteWithBody(string $uri, array $data): array
+        {
+            return [];
+        }
+
+        public function postExpectingEnvelope(string $uri, ?array $data = null): array
         {
             return [];
         }

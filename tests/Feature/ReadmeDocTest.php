@@ -18,10 +18,13 @@ use Lettr\Dto\Audience\SegmentConditionGroup;
 use Lettr\Dto\Audience\SegmentConditionsInput;
 use Lettr\Dto\Audience\UpdateAudiencePropertyData;
 use Lettr\Dto\Audience\UpdateAudienceSegmentData;
+use Lettr\Dto\Campaign\ListCampaignEventsFilter;
+use Lettr\Dto\Campaign\ListCampaignsFilter;
 use Lettr\Enums\AudienceContactStatus;
 use Lettr\Enums\AudiencePropertyType;
 use Lettr\Enums\AudienceTopicDefaultSubscription;
 use Lettr\Enums\AudienceTopicVisibility;
+use Lettr\Enums\CampaignStatus;
 use Lettr\Enums\EventType;
 use Lettr\Enums\SegmentOperator;
 use Lettr\Laravel\Facades\Lettr;
@@ -34,6 +37,7 @@ use Lettr\Services\Audience\AudiencePropertyService;
 use Lettr\Services\Audience\AudienceSegmentService;
 use Lettr\Services\Audience\AudienceTopicService;
 use Lettr\Services\AudienceService;
+use Lettr\Services\CampaignService;
 
 // ---------------------------------------------------------------------------
 // Section: Using the Lettr Facade Directly — Email Builder
@@ -543,4 +547,54 @@ it('AudienceTopicDefaultSubscription reports opt-in semantics', function () {
     expect(AudienceTopicDefaultSubscription::OptIn->isOptIn())->toBeTrue()
         ->and(AudienceTopicDefaultSubscription::OptIn->subscribesNewContactsByDefault())->toBeFalse()
         ->and(AudienceTopicDefaultSubscription::OptOut->subscribesNewContactsByDefault())->toBeTrue();
+});
+
+// ---------------------------------------------------------------------------
+// Section: Campaigns — facade resolution
+// ---------------------------------------------------------------------------
+
+it('campaigns facade returns the CampaignService', function () {
+    expect(Lettr::campaigns())->toBeInstanceOf(CampaignService::class);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Campaigns — filters
+// ---------------------------------------------------------------------------
+
+it('ListCampaignsFilter builds fluently into query params', function () {
+    $filter = ListCampaignsFilter::create()
+        ->status(CampaignStatus::Sent)
+        ->page(2)
+        ->perPage(50);
+
+    expect($filter->toArray())->toBe([
+        'page' => 2,
+        'per_page' => 50,
+        'status' => 'sent',
+    ]);
+});
+
+it('ListCampaignEventsFilter omits null cursor and serializes event_type / dates', function () {
+    $filter = ListCampaignEventsFilter::create()
+        ->eventType(EventType::Click)
+        ->startDate(new DateTimeImmutable('2026-05-01T00:00:00+00:00'))
+        ->cursor(null);
+
+    expect($filter->toArray())->toBe([
+        'event_type' => 'click',
+        'start_date' => '2026-05-01T00:00:00+00:00',
+    ]);
+});
+
+// ---------------------------------------------------------------------------
+// Section: Campaigns — Enums
+// ---------------------------------------------------------------------------
+
+it('CampaignStatus exposes the documented lifecycle values and labels', function () {
+    expect(CampaignStatus::Draft->value)->toBe('draft')
+        ->and(CampaignStatus::Scheduled->value)->toBe('scheduled')
+        ->and(CampaignStatus::Sending->value)->toBe('sending')
+        ->and(CampaignStatus::Sent->value)->toBe('sent')
+        ->and(CampaignStatus::Failed->value)->toBe('failed')
+        ->and(CampaignStatus::InReview->label())->toBe('In Review');
 });
