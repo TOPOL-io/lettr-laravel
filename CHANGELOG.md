@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-06-01
+
+### Added
+
+- **User-Agent identification** — the package now forwards a `lettr-laravel/<version>` suffix to the SDK client, so outbound API and SMTP requests are attributable to this integration (e.g. `User-Agent: lettr-php/<x> lettr-laravel/2.3.0`).
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^2.4.0`** for the `Lettr::client()` user-agent suffix parameter, which earlier SDK versions don't accept.
+
 ## [2.2.0] - 2026-05-28
 
 ### Added
