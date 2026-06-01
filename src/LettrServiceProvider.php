@@ -23,7 +23,7 @@ class LettrServiceProvider extends ServiceProvider
     /**
      * The package version.
      */
-    public const VERSION = '2.2.0';
+    public const VERSION = '2.3.0';
 
     /**
      * Bootstrap any application services.
@@ -88,7 +88,7 @@ class LettrServiceProvider extends ServiceProvider
                 throw ApiKeyIsMissing::create();
             }
 
-            return Lettr::client($apiKey);
+            return Lettr::client($apiKey, 'lettr-laravel/'.self::VERSION);
         });
 
         $this->app->singleton('lettr', function (): LettrManager {
