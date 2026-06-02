@@ -377,24 +377,6 @@ class WelcomeEmail extends LettrMailable
 }
 ```
 
-## Documentation
-
-Full guides, every facade method, and complete request/response details live in the docs:
-
-📚 **[docs.lettr.com/quickstart/laravel](https://docs.lettr.com/quickstart/laravel/introduction)**
-
-| Topic | Guide |
-|-|-|
-| Install, config, and verify | [Installation](https://docs.lettr.com/quickstart/laravel/installation) |
-| Mail facade, Lettr facade, Mailables, scheduling, testing | [Sending Emails](https://docs.lettr.com/quickstart/laravel/sending-emails) |
-| Lettr templates, versioning, pull/push | [Templates](https://docs.lettr.com/quickstart/laravel/templates) |
-| Generated enums, DTOs, and Mailables | [Type Safety](https://docs.lettr.com/quickstart/laravel/type-safety) |
-| Add, verify, and manage sending domains | [Domains](https://docs.lettr.com/quickstart/laravel/domains) |
-| Webhook endpoints for delivery & engagement events | [Webhooks](https://docs.lettr.com/quickstart/laravel/webhooks) |
-| Lists, contacts, topics, properties, segments | [Audience](https://docs.lettr.com/quickstart/laravel/audience) |
-| List, send, and schedule campaigns | [Campaigns](https://docs.lettr.com/quickstart/laravel/campaigns) |
-| Endpoint reference (params & schemas) | [API Reference](https://docs.lettr.com/api-reference/introduction) |
-
 ## Error Handling
 
 ```php
@@ -457,6 +439,25 @@ return [
 The `templates` block configures where `lettr:pull`, `lettr:generate-dtos`, and `lettr:generate-enum` commands save generated files.
 
 The package also supports `config('services.lettr.key')` as a fallback for the API key.
+
+## Documentation
+
+Full guides, every facade method, and complete request/response details live in the docs:
+
+📚 **[docs.lettr.com/quickstart/laravel](https://docs.lettr.com/quickstart/laravel/introduction)**
+
+| Topic | Guide |
+|-|-|
+| Install, config, and verify | [Installation](https://docs.lettr.com/quickstart/laravel/installation) |
+| Mail facade, Lettr facade, Mailables, scheduling, testing | [Sending Emails](https://docs.lettr.com/quickstart/laravel/sending-emails) |
+| Lettr templates, versioning, pull/push | [Templates](https://docs.lettr.com/quickstart/laravel/templates) |
+| Generated enums, DTOs, and Mailables | [Type Safety](https://docs.lettr.com/quickstart/laravel/type-safety) |
+| Add, verify, and manage sending domains | [Domains](https://docs.lettr.com/quickstart/laravel/domains) |
+| Webhook endpoints for delivery & engagement events | [Webhooks](https://docs.lettr.com/quickstart/laravel/webhooks) |
+| Lists, contacts, topics, properties, segments | [Audience](https://docs.lettr.com/quickstart/laravel/audience) |
+| List, send, and schedule campaigns | [Campaigns](https://docs.lettr.com/quickstart/laravel/campaigns) |
+| Endpoint reference (params & schemas) | [API Reference](https://docs.lettr.com/api-reference/introduction) |
+
 
 ## CLI Commands
 
