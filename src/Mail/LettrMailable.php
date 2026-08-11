@@ -56,6 +56,11 @@ abstract class LettrMailable extends Mailable
     protected ?string $scheduledAt = null;
 
     /**
+     * Whether the Lettr header callback has already been registered.
+     */
+    protected bool $lettrHeadersRegistered = false;
+
+    /**
      * Set the template slug.
      */
     public function template(string $slug, ?int $version = null, ?int $projectId = null): static
@@ -151,6 +156,8 @@ abstract class LettrMailable extends Mailable
      */
     public function content(): Content
     {
+        $this->prepareLettrDelivery();
+
         // If Blade view is set, use view rendering
         if ($this->bladeView !== null) {
             return new Content(
@@ -159,7 +166,7 @@ abstract class LettrMailable extends Mailable
             );
         }
 
-        // API template mode - return empty content
+        // API template mode - the body is set by prepareLettrDelivery()
         return new Content;
     }
 
@@ -177,7 +184,7 @@ abstract class LettrMailable extends Mailable
      * Get the merge tags for the template.
      *
      * Override this method in subclasses to provide merge tag data.
-     * This is automatically called during build() and merged with substitutionData.
+     * This is automatically called before delivery and merged with substitutionData.
      *
      * @return array<string, mixed>
      */
@@ -188,12 +195,43 @@ abstract class LettrMailable extends Mailable
 
     /**
      * Build the message.
+     *
+     * Kept for backwards compatibility: subclasses that call parent::build()
+     * still work, but the Lettr setup no longer depends on it being reached.
      */
     public function build(): static
     {
+        $this->prepareLettrDelivery();
+
+        return $this;
+    }
+
+    /**
+     * Prepare the mailable for delivery.
+     *
+     * Laravel calls this before every send and render, so Lettr's setup runs
+     * even when a subclass overrides build() or content() without calling the
+     * parent implementation.
+     */
+    protected function prepareMailableForDelivery(): void
+    {
+        parent::prepareMailableForDelivery();
+
+        $this->prepareLettrDelivery();
+    }
+
+    /**
+     * Apply the Lettr transport configuration to this mailable.
+     *
+     * Safe to call repeatedly: the header callback is registered once, and
+     * everything it reads is resolved when the callback runs, so the call
+     * order relative to template()/substitutionData() does not matter.
+     */
+    protected function prepareLettrDelivery(): void
+    {
         // If using Blade view, skip Lettr-specific setup
         if ($this->bladeView !== null) {
-            return $this;
+            return;
         }
 
         // Use the lettr mailer/transport for API template mode
@@ -205,11 +243,23 @@ abstract class LettrMailable extends Mailable
             $this->substitutionData = array_merge($mergeTags, $this->substitutionData);
         }
 
+        // Laravel documents $html as "string" even though it stays null until a
+        // body is set, so read it through get_object_vars() to keep the null case
+        // visible to static analysis.
+        $body = get_object_vars($this)['html'] ?? null;
+
         // Set placeholder HTML - the actual content comes from the Lettr template
-        // This is required because Laravel's Mailer expects some content
-        if ($this->templateSlug !== null) {
+        // This is required because Laravel's Mailer expects some content. A body
+        // set by the mailable itself is left alone.
+        if ($this->templateSlug !== null && $body === null) {
             $this->html('<p>This email uses Lettr template: '.$this->templateSlug.'</p>');
         }
+
+        if ($this->lettrHeadersRegistered) {
+            return;
+        }
+
+        $this->lettrHeadersRegistered = true;
 
         // Register callback to add Lettr headers
         $this->withSymfonyMessage(function ($message): void {
@@ -251,8 +301,6 @@ abstract class LettrMailable extends Mailable
                 $message->getHeaders()->addTextHeader('X-Lettr-Tag', $this->generateTag());
             }
         });
-
-        return $this;
     }
 
     /**

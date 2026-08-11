@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Mailables that override `build()` no longer fail to send.** Overriding `build()` without calling `parent::build()` — the pattern shown in the README — meant the Lettr setup never ran, and delivery aborted with `InvalidArgumentException: Invalid view.` The setup (transport selection, `X-Lettr-*` headers, merge tag collection, placeholder body) now runs from Laravel's own delivery hook, so it applies whether or not `parent::build()` is reached. Existing mailables that do call `parent::build()` are unaffected.
+
+### Changed
+
+- **`LettrMailable::build()` is no longer required.** It remains for backward compatibility and is safe to call, but subclasses no longer need to define or delegate to it.
+- **A body set by the mailable is no longer overwritten** by the `This email uses Lettr template: …` placeholder. The placeholder is only applied when the mailable has no HTML body of its own; the Lettr transport still renders the template itself in either case.
+
 ## [2.3.0] - 2026-06-01
 
 ### Added
