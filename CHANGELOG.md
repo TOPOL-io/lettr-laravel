@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-08-14
+
+### Added
+
+- **Reworked bulk contact import** — reachable through `Lettr::audience()->contacts()`:
+  - `BulkCreateAudienceContactsData::forContacts()` addresses each contact individually — every `BulkAudienceContactRow` carries its own `properties`, `listIds` and `topics`, on top of the batch-wide values. `::forEmails()` names the original flat shape; the plain constructor still accepts `(emails, listId, properties)` positionally, so existing calls send byte-identical payloads.
+  - Topic subscriptions are expressed as `AudienceTopicSubscription::optIn()` / `::optOut()` (enum `AudienceTopicSubscriptionState`). A row-level `optOut()` suppresses the auto-subscription of an opt-out-by-default topic **in the same request**, and beats a batch-level opt-in for that contact.
+  - `updateExisting: true` merges properties on existing contacts (submitted keys overwrite, absent keys are preserved). The default `false` still attaches existing contacts to the requested lists — unchanged behaviour.
+  - `BulkStoreAudienceContactsResult` now reports what happened per row: `updated`, `errorCount`, `errors` (`BulkAudienceContactError[]`), and `contacts` (`BulkAudienceContactRef[]`, so you get ids back without a follow-up lookup), plus the helpers `hasErrors()`, `contactIds()` and `idFor(string $email)`.
+- **Bulk topic subscribe/unsubscribe** — `contacts()->bulkSubscribeTopics()` and `->bulkUnsubscribeTopics()`, both taking a `BulkAudienceContactTopicsData` (`contactIds` × `topicIds`, up to 1000 × 50). Feed them `$result->contactIds()` straight from a bulk create.
+- **`ContactAlreadyExistsException`** — creating a contact whose email already exists now throws a dedicated exception (HTTP 409, `resource_already_exists`) carrying the colliding `->email`, instead of surfacing as an HTTP 500 with the misleading `send_error` code. It extends `ConflictException` → `ApiException`, so existing handlers keep catching it. See the **Error Handling** section of the README.
+- **`ApiException::errorCode()`** (and the readonly `->errorCode`) exposes the API's machine-readable `error_code` on every API exception, or `null` when the API didn't send one.
+
+### Changed
+
+- **Upgraded `lettr/lettr-php` to `^2.5.0`** for the bulk contact import rework. The SDK change is additive — `TransporterContract` is untouched, so custom transporter implementations are unaffected.
+
+### Notes
+
+Three behaviours in the new bulk create are easy to get wrong:
+
+- **A bulk create can partially succeed.** Rows that fail validation are skipped and returned in `errors` while the rest of the batch commits — and the call still returns HTTP 201. Check `hasErrors()`; don't read a successful return as "everything landed".
+- **`alreadyExisted` and `updated` overlap by design.** They answer different questions ("was the address already in the audience?" vs "did this request change the contact?"), so they don't sum to the row count: a contact that already existed and got attached to a list is counted in both.
+- **An empty payload now throws.** `new BulkCreateAudienceContactsData([])` raises `InvalidValueException` instead of being sent to the API — the one non-additive edge of the SDK upgrade.
+
+Duplicate contact creates are also no longer picked up by a 5xx retry policy, since they now arrive as a 409. `withRateLimitRetry()` in this package only ever retried `RateLimitException`, so it is unaffected.
+
 ## [2.3.0] - 2026-06-01
 
 ### Added

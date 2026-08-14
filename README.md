@@ -381,6 +381,7 @@ class WelcomeEmail extends LettrMailable
 
 ```php
 use Lettr\Exceptions\ApiException;
+use Lettr\Exceptions\ContactAlreadyExistsException;
 use Lettr\Exceptions\TransporterException;
 use Lettr\Exceptions\ValidationException;
 use Lettr\Exceptions\NotFoundException;
@@ -390,6 +391,9 @@ use Lettr\Exceptions\QuotaExceededException;
 
 try {
     $response = Lettr::emails()->send($email);
+} catch (ContactAlreadyExistsException $e) {
+    // Duplicate contact (409) — client-correctable, never retry
+    Log::info("Contact already exists: " . $e->email);
 } catch (RateLimitException $e) {
     // Too many requests (429)
     Log::warning("Rate limited, retry after: " . $e->retryAfter . "s");
@@ -413,6 +417,10 @@ try {
     Log::error("Network error: " . $e->getMessage());
 }
 ```
+
+Every `ApiException` exposes the API's machine-readable code via `$e->errorCode()` (or the readonly `$e->errorCode`), or `null` when the API didn't send one. Catch order matters: `ContactAlreadyExistsException` extends `ConflictException`, which extends `ApiException`, so it must be caught before them.
+
+Creating a contact whose email is already in your audience throws `ContactAlreadyExistsException` (HTTP 409, `resource_already_exists`) carrying the colliding `$e->email`. **Don't retry it** — it's a client-correctable condition, not an outage. Update the existing contact with `update()`, or use `bulkCreate()` with `updateExisting: true`.
 
 ## Configuration
 
